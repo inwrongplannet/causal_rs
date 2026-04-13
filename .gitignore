@@ -1,0 +1,21 @@
+# Phase 1 generated data artifacts
+/data/raw/
+/data/interim/
+/data/processed/
+/data/*.parquet
+/data/*.pkl
+
+# Jupyter noise
+**/.ipynb_checkpoints/
+
+# Python cache
+**/__pycache__/
+**/*.pyc
+
+# Local environments
+.venv/
+
+# Datasets and Resources
+MIND large dataset/
+MIND small dataset/
+Resources/
