@@ -4,14 +4,15 @@
 
 ### 1) Test Stack and Commands
 
-- **Primary test framework**: pytest 8.1.1
-- **Assertion/mocking tools**: Built-in `assert` statements. No mocking library (unittest.mock, pytest-mock, etc.) found.
+- **Primary test framework**: pytest 9.0.3
+- **Assertion/mocking tools**: Built-in `assert` statements. No mocking library (unittest.mock, pytest-mock, etc.) found. `pytest-cov==7.1.0` is installed but not configured (no `.coveragerc` or `pyproject.toml` coverage section).
 - **Commands**:
-  ```bash
-  .venv\Scripts\python -m pytest tests/ -v
-  .venv\Scripts\python -m pytest tests/test_counterfactual.py -v
-  .venv\Scripts\python -m pytest tests/ -v -k "test_build"
-  ```
+```bash
+.venv\Scripts\python -m pytest tests/ -v
+.venv\Scripts\python -m pytest tests/test_counterfactual.py -v
+.venv\Scripts\python -m pytest tests/ -v -k "test_build"
+.venv\Scripts\python -m pytest tests/ --cov=src --cov-report=term
+```
 
 ### 2) Test Layout
 
@@ -35,7 +36,7 @@
 
 ### 5) Coverage and Quality Signals
 
-- **Coverage tool + threshold**: None configured. No `.coveragerc` or `[tool.coverage]` section found in project root.
+- **Coverage tool + threshold**: `pytest-cov==7.1.0` installed but not configured (no `.coveragerc` or `[tool.coverage]` section in project root). Running with `--cov` would work ad-hoc.
 - **Current reported coverage**: [TODO] — coverage has never been measured.
 - **Known gaps/flaky areas**: 
   - `src/causal_model/` (graph.py, model.py, cdi.py, refutation.py) has **zero test coverage**.
@@ -49,3 +50,4 @@
 - `tests/test_gpu_utils.py` — 17 tests for batch ops with both GPU and CPU paths
 - `tests/test_environment.py` — 7 tests for `NewsRecommendEnv`
 - `tests/test_evaluation.py` — 21 tests for metrics
+- `pytest-cov==7.1.0` in `.venv` — coverage tool available (not configured)

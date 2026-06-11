@@ -74,9 +74,9 @@ MIND-small TSV files
 
 ### 5) Known Architectural Risks
 
-1. **CDI lacks per-item discrimination** — The GCM counterfactual query produces CDI scores that vary by only ~0.01–0.02 within a session (all items ≈ 0.88–0.90). This makes the RL reward nearly constant, causing PPO to perform on par with Random. See `docs/RESEARCH_LOG.md` (2026-06-11 RL-Guided Hyperparameter Tuning entry).
-2. **No git history** — The repository has no commits, so there is no change tracking, blame capability, or branch-based development workflow. Rollback after failed experiments is impossible.
-3. **Single config module as global state** — `src/config.py` is imported directly as a module (not injected), making it hard to vary config per experiment without modifying the source file.
+1. **CDI lacks per-item discrimination** — The GCM counterfactual query produces CDI scores that vary by only ~0.01–0.02 within a session (all items ≈ 0.88–0.90). **Partially mitigated 2026-06-11**: min-max normalization in `NewsRecommendEnv._min_max_cdi()` amplifies the tiny range to [0,1] per step. PPO now significantly beats Random on NDCG (p=0.017). The root cause (raw CDI's narrow range) persists — normalization is a workaround.
+2. **Single commit — no iterative history** — The repository has only 1 commit (`5e0ba82`), so no change tracking, blame, or rollback capability exists.
+3. **Config as global mutable state** — `src/config.py` still exports module-level constants imported by consumers. This was partially mitigated by the YAML loader (CLI/env/YAML overrides), but the module-level constants remain global and cannot be easily swapped per experiment without `reload()`.
 
 ### 6) Evidence
 

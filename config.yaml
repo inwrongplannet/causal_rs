@@ -1,0 +1,23 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# causal_rs configuration
+# ──────────────────────────────────────────────────────────────────────────────
+# Priority (highest to lowest):
+#   1. CLI arguments:  --config.key=value
+#   2. Env variables:  CAUSAL_RS_KEY=value
+#   3. This YAML file
+#   4. Hardcoded defaults in src/config.py
+# ──────────────────────────────────────────────────────────────────────────────
+
+seed: 42
+dataset: "small"
+neg_ratio: 4
+pca_components: 32
+title_embed_dim: 768
+title_embed_model: "sentence-transformers/all-mpnet-base-v2"
+entity_embed_dim: 100
+split_ratios: [0.70, 0.15, 0.15]
+max_behavior_rows: 5000  # null / 0 for unlimited (uses sys.maxsize)
+
+gpu_device: 0
+gpu_enabled: true
+gpu_batch_size: 4096

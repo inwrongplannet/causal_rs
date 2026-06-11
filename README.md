@@ -4,7 +4,7 @@
 
 **Causal Recommendation System** — A research pipeline combining structural causal models, counterfactual reasoning, and reinforcement learning for diversity-aware news recommendation.
 
-[![Python 3.13](https://img.shields.io/badge/Python-3.13+-blue?style=flat-square&logo=python)](https://python.org)
+[![Python 3.14](https://img.shields.io/badge/Python-3.14+-blue?style=flat-square&logo=python)](https://python.org)
 [![PyTorch](https://img.shields.io/badge/PyTorch-2.6-ee4c2c?style=flat-square&logo=pytorch)](https://pytorch.org)
 [![DoWhy](https://img.shields.io/badge/DoWhy-0.14-7b2ff7?style=flat-square)](https://github.com/py-why/dowhy)
 [![SB3](https://img.shields.io/badge/Stable--Baselines3-2.8-green?style=flat-square)](https://stable-baselines3.readthedocs.io)
@@ -17,7 +17,7 @@
 **causal_rs** explores whether counterfactual diversity scores (CDI) can guide a reinforcement learning policy to recommend content that is both relevant and diverse. The pipeline processes Microsoft News (MIND) data through five sequential phases — from raw TSV files to a trained PPO policy with offline evaluation.
 
 > [!NOTE]
-> This is a **research project**, not a production system. Results show that causal diversity signals improve intra-list diversity compared to popularity baselines, but relevance gains over random are not yet statistically significant with current training budget.
+> This is a **research project**, not a production system. After min-max CDI normalization, PPO now shows statistically significant NDCG gains over Random (p=0.017). See `docs/RESEARCH_LOG.md` for full history.
 
 ## Features
 
@@ -61,13 +61,14 @@ MIND-small TSV            pipeline/streaming.py         gcm_fit.py
 
 ```
 causal_rs/
-├── src/                        # Python package (5 subpackages)
+├── config.yaml                 # Editable configuration (YAML + env/CLI overrides)
+├── src/                        # Python package (5 subpackages, 25 files)
 │   ├── causal_model/           # DoWhy causal inference (ATE, refutation, CDI batch)
 │   ├── counterfactual/         # GCM graph, fit, counterfactual query, CDI cache
 │   ├── data_pipeline/          # MIND I/O, parsing, features, SCM builder, streaming
 │   ├── evaluation/             # NDCG, Precision, ILD, significance testing
 │   ├── rl_agent/               # Gymnasium environment, PPO training
-│   ├── config.py               # Path constants and pipeline configuration
+│   ├── config.py               # Config loader (reads config.yaml + env + CLI)
 │   └── gpu_utils.py            # GPU-accelerated batch ops with cupy/numpy fallback
 ├── notebooks/                  # 5 phase notebooks (execution entry points)
 ├── tests/                      # pytest test suite (140 tests, 12 test files)
@@ -80,25 +81,63 @@ causal_rs/
 
 ### Prerequisites
 
-- **Python 3.13+**
-- **NVIDIA GPU** (optional, automatic fallback to CPU)
+- **Python 3.14+** — developed and tested on CPython 3.14.5
+- **pip 25+** (comes with Python 3.14)
+- **NVIDIA GPU** optional — all operations auto-fallback to CPU
 - **MIND-small dataset** — download from [MIND News Dataset](https://msnews.github.io/)
 
-### Installation
+### Virtual Environment Setup
+
+The project was built and tested with the following exact environment. Clone it precisely:
 
 ```bash
-# Clone
+# 1. Clone
 git clone https://github.com/your-username/causal_rs.git
 cd causal_rs
 
-# Create and activate virtual environment
+# 2. Create venv with Python 3.14+
 python -m venv .venv
-.venv\Scripts\activate   # Windows
-# source .venv/bin/activate  # Linux/macOS
 
-# Install dependencies
-.venv\Scripts\pip install -r requirements.txt
+# 3. Activate
+.venv\Scripts\activate         # Windows
+# source .venv/bin/activate    # Linux / macOS
+
+# 4. Upgrade pip inside venv
+python -m pip install --upgrade pip
+
+# 5. Install dependencies
+pip install -r requirements.txt
 ```
+
+**Key packages (as tested):**
+
+| Package | Version | Role |
+|---------|---------|------|
+| `python` | 3.14.5 | Runtime |
+| `torch` | 2.6.0+cu124 | Deep learning / GPU ops |
+| `dowhy` | 0.14 | Causal inference |
+| `stable-baselines3` | 2.8.0 | PPO RL agent |
+| `gymnasium` | 1.2.3 | RL environment interface |
+| `pandas` | 3.0.3 | Data pipeline |
+| `numpy` | 2.4.6 | Numerical ops |
+| `scikit-learn` | 1.9.0 | PCA, vectorizer fallback |
+| `sentence-transformers` | 5.5.1 | Title embeddings (all-mpnet-base-v2) |
+| `networkx` | 3.6.1 | Causal DAG |
+| `pyyaml` | 6.0.3 | Config file loader |
+| `matplotlib` | 3.10.9 | Plots |
+| `pytest` | 9.0.3 | Test runner (140 tests) |
+| `pytest-cov` | 7.1.0 | Coverage (optional) |
+
+> `requirements.txt` is a full `pip freeze` (767 lines). Only the packages above are actively used.
+
+### Configuration
+
+Edit `config.yaml` in the project root to override defaults. Priority (highest → lowest):
+
+1. CLI args: `--config.seed=99`
+2. Env vars: `CAUSAL_RS_SEED=99`
+3. YAML: `config.yaml`
+4. Hardcoded defaults in `src/config.py`
 
 ### Run the Pipeline
 
@@ -114,7 +153,7 @@ Each phase is a Jupyter notebook. Execute sequentially:
 # ... phases 3, 4, 5
 ```
 
-Or open the notebooks interactively:
+Or open interactively:
 
 ```bash
 .venv\Scripts\jupyter notebook
@@ -123,31 +162,41 @@ Or open the notebooks interactively:
 ### Run Tests
 
 ```bash
-.venv\Scripts\python -m pytest tests/ -v
+.venv\Scripts\python -m pytest tests/ -v       # all 140 tests
+.venv\Scripts\python -m pytest tests/ --cov=src  # with coverage
 ```
 
 ## Key Results
 
-| Metric | PPO (Causal-RL) | Random | Popularity |
-|--------|:-:|:-:|:-:|
-| NDCG@10 | 0.0875 ± 0.203 | 0.0796 ± 0.178 | **0.2967** ± 0.318 |
-| Precision@10 | 0.0213 ± 0.043 | 0.0205 ± 0.040 | **0.0657** ± 0.064 |
-| ILD | **0.9586** ± 0.014 | 0.9576 ± 0.015 | 0.9522 ± 0.016 |
+After min-max CDI normalization (2026-06-11):
+
+| Method | NDCG@10 | Precision@10 | ILD | n |
+|--------|:-------:|:------------:|:---:|:-:|
+| **PPO (Causal-RL)** | **0.0974** ± 0.230 | 0.0204 ± 0.042 | **0.9589** ± 0.015 | 750 |
+| Random | 0.0786 ± 0.183 | 0.0204 ± 0.041 | 0.9587 ± 0.015 | 750 |
+| Popularity | **0.2967** ± 0.318 | **0.0657** ± 0.064 | 0.9522 ± 0.016 | 750 |
+
+| Comparison | NDCG | Precision | ILD |
+|------------|:----:|:---------:|:---:|
+| **PPO vs Random** | **p=0.017** ✅, d=+0.082 | p=1.00, d=0.000 | p=0.73, d=+0.016 |
+| PPO vs Popularity | p<0.0001, d=−0.865 | p<0.0001, d=−1.081 | p<0.0001, d=+0.444 |
 
 > [!TIP]
-> PPO consitently outperforms Random on all metrics (NDCG +10%, Precision +4%, ILD +0.0010) but differences are not yet statistically significant (p > 0.05). Popularity dominates relevance. PPO achieves higher ILD than Popularity (d = 0.44, medium effect). See `docs/RESEARCH_LOG.md` for full history.
+> With min-max CDI normalization, PPO now significantly outperforms Random on NDCG (p=0.017, +23.9%). Precision matches Random (clicks are sparse). ILD is the highest of all methods. Popularity still dominates relevance metrics. See `docs/RESEARCH_LOG.md` for full history.
 
 ## Technology Stack
 
-| Category | Tools |
-|----------|-------|
-| **Core** | Python 3.13, PyTorch 2.6, NumPy, Pandas, scikit-learn |
-| **Causal** | DoWhy 0.14, NetworkX 3.4 |
-| **RL** | stable-baselines3 2.8, Gymnasium 1.2 |
-| **NLP** | Sentence-Transformers 5.5 (all-mpnet-base-v2), Transformers |
-| **GPU** | cuML (optional), cupy (optional, auto-fallback) |
-| **Data** | MIND-small, PyArrow/Parquet |
-| **Test** | pytest 8.1 (140 tests) |
+| Category | Version | Tools |
+|----------|---------|-------|
+| **Runtime** | 3.14.5 | CPython, pip 25+ |
+| **Core** | 2.6.0+cu124 / 3.0.3 / 2.4.6 / 1.9.0 | PyTorch, Pandas, NumPy, scikit-learn |
+| **Causal** | 0.14 / 3.6.1 | DoWhy, NetworkX |
+| **RL** | 2.8.0 / 1.2.3 | stable-baselines3, Gymnasium |
+| **NLP** | 5.5.1 | Sentence-Transformers (all-mpnet-base-v2) |
+| **Config** | 6.0.3 | PyYAML (config.yaml loader) |
+| **GPU** | optional | cuML, cupy (auto-fallback to CPU) |
+| **Data** | — | MIND-small, PyArrow/Parquet |
+| **Test** | 9.0.3 / 7.1.0 | pytest, pytest-cov (140 tests) |
 
 ## Research Log
 

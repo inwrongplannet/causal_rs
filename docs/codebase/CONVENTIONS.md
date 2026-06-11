@@ -13,7 +13,7 @@
 
 ### 2) Formatting and Linting
 
-- **Formatter**: `black` (version 26.1.0) — installed as dev dependency, no config file found in project root
+- **Formatter**: `black` (version 26.1.0) — declared in `requirements.txt` but not currently installed in `.venv`; no config file found in project root
 - **Linter**: No linter config found (no `.flake8`, `pyproject.toml`, `.pylintrc`, or `ruff` config)
 - **Most relevant enforced rules**: Black defaults (line length 88, consistent quotes, trailing commas). No custom rules found.
 - **Run commands**:

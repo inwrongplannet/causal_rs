@@ -132,6 +132,22 @@ class NewsRecommendEnv(gym.Env):
         self.D = compute_session_diversity(self.history_emb, self.session)
         return self._obs(), {}
 
+    def _min_max_cdi(self, step_idx: int) -> tuple[float, float]:
+        """Min-max normalise CDI scores across the step's candidate pool.
+
+        Returns:
+            Tuple of (cdi_min, cdi_range) for this step's candidates.
+            Both are floats; range is 0 if all CDI values are identical.
+        """
+        candidates = self.session.candidates[step_idx]
+        cdi_vals = [
+            self.cdi_cache.get((self.session.user_id, c.item_id), 0.0)
+            for c in candidates
+        ]
+        cdi_min = min(cdi_vals)
+        cdi_max = max(cdi_vals)
+        return cdi_min, cdi_max - cdi_min
+
     def step(self, action: int):
         """Execute one environment step.
 
@@ -143,9 +159,11 @@ class NewsRecommendEnv(gym.Env):
         """
         candidate = self.session.candidates[self.step_idx][action]
         r_click = self.session.clicks[self.step_idx][action]
-        cdi = self.cdi_cache.get(
+        raw_cdi = self.cdi_cache.get(
             (self.session.user_id, candidate.item_id), 0.0
         )
+        cdi_min, cdi_range = self._min_max_cdi(self.step_idx)
+        cdi = (raw_cdi - cdi_min) / cdi_range if cdi_range > 0 else 0.5
         reward = self.w * r_click + (1 - self.w) * cdi
 
         if r_click:

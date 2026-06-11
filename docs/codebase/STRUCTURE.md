@@ -12,7 +12,8 @@
 | `data/` | Data artifacts (raw MIND, interim embeddings, processed SCM data, split parquet parts) | `data/raw/MIND-small/`, `data/interim/`, `data/scm_parts/` |
 | `artifacts/` | Trained models and cache (GCM model pickle, CDI cache, PPO policy checkpoint) | `artifacts/gcm_model.pkl`, `artifacts/cdi_cache.pkl`, `artifacts/checkpoints/` |
 | `docs/` | Documentation | `docs/RESEARCH_LOG.md`, `docs/resources/` (CausalRS reference docs), `docs/codebase/` |
-| `scripts/` | Currently empty — standalone runner scripts were moved into notebooks | `scripts/` (empty) |
+| `config.yaml` | Editable configuration file (loaded by `src/config.py`) | `config.yaml` |
+| `scripts/` | Empty — standalone runner scripts were moved into notebooks | `scripts/` (empty) |
 
 ### 2) Entry Points
 
@@ -36,7 +37,7 @@
 
 - **File naming pattern**: `snake_case.py` — e.g., `gcm_fit.py`, `precompute_cdi.py`, `scm_builder.py`, `nlp_utils.py`
 - **Directory organization pattern**: **Layer-based** — split by pipeline stage (data_pipeline → causal_model → counterfactual → rl_agent → evaluation), not by feature
-- **Import aliasing or path conventions**: All imports from `src.*` using absolute package imports (e.g., `from src.counterfactual.queries import predict_diversity_counterfactual`). No relative imports.
+- **Import aliasing or path conventions**: All imports from `src.*` using absolute package imports (e.g., `from src.counterfactual.queries import predict_diversity_counterfactual`). No relative imports. `tests/conftest.py` inserts project root into `sys.path` so test files can `import src.*`.
 
 ### 5) Evidence
 
