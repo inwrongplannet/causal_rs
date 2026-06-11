@@ -4,6 +4,51 @@ Living document tracking pipeline runs, findings, key decisions, and metrics.
 
 ---
 
+## 2026-06-12 — Full GCM Refit & CDI Expansion: 50K → 657K Rows, 500 → 656K Entries
+
+### Objective
+Fix the three root causes of weak CDI: (1) GCM fitted on only 50K of 657K available rows, (2) CDI limited to 100 sessions × 5 candidates = 500 entries, (3) item-level title PCA features also added to graph. Fit GCM on ALL training data and compute CDI for ALL session×candidate pairs.
+
+### What Changed
+- **Phase 3 notebook had 3 truncation points**: GCM sampled to 50K rows (`df.sample(n=50000)`), sessions capped at 100 (`sessions[:100]`), candidates capped at 5 (`sess.candidate_pool[:5]`). All three limits removed.
+- **Script**: `scripts/refit_full_gcm_and_cdi.py` — loads full `scm_train.parquet`, fits GCM on all 657K rows, builds sessions for all 3,500 impressions, computes CDI for all unique (user, item) pairs.
+- **Optimization**: User row lookup indexed by dict (`user_index[uid]`, O(1) vs O(n) scan).
+- **New artifacts** (separate from old, for comparison): `artifacts/gcm_model_full.pkl`, `artifacts/cdi_cache_full.pkl`.
+
+### Results
+
+| Step | Before | After | Δ |
+|------|--------|-------|---|
+| GCM training rows | 50,000 | 657,170 | **13.1× more data** |
+| GCM fit time | 22.3 s | 108.0 s | 4.8× longer (not linear — 102 nodes, only 3 have trainable mechanisms) |
+| CDI cache entries | 500 | **656,314** | **1,313× more** |
+| Sessions with CDI coverage | 103 / 3,500 (2.9%) | **3,500 / 3,500 (100%)** | **Full coverage** |
+| CDI computation time | 4.2 s (500 pairs) | 4,408 s (656K pairs) | ~73.5 min |
+| Throughput | ~119 pairs/s | ~149 pairs/s | 1.25× faster (due to user_index optimization) |
+| Graph | 6 + 32 U_pca nodes | +32 I_entity_pca + 32 I_title_pca = **102 nodes** | All item-level features |
+
+### CDI Sample Comparison
+
+| (User, Item) | Old GCM (50K rows, no title-PCA) | New GCM (657K rows, full graph) |
+|-------------|------|------|
+| (U8125, N39985) | 0.8911 | *TBD after PPO retrain* |
+| (U8125, N36050) | 0.8968 | *TBD* |
+| (U8125, N16096) | 0.8803 | *TBD* |
+
+### What's Next
+- **Retrain PPO** with the new 656K-entry CDI cache → expect more discriminative rewards across 3,500 sessions (was 103).
+- **Re-evaluate** PPO vs Random vs Popularity on 750 test sessions.
+- If CDI variance remains narrow within sessions, the min-max CDI normalization in `NewsRecommendEnv._min_max_cdi()` will amplify it to [0, 1] per step.
+
+### Key Decision
+- **Saved separately**: Old artifacts (`gcm_model.pkl`, `cdi_cache.pkl`) preserved alongside new (`gcm_model_full.pkl`, `cdi_cache_full.pkl`). The new `cdi_cache_full.pkl` is ~11 MB (656K float32 values). Old cache was ~12 KB (500 entries).
+- **Script committed**: `scripts/refit_full_gcm_and_cdi.py` at project root for reproducible refits.
+
+### Status
+✅ **Done** — GCM refit and CDI expansion complete. Ready for PPO retraining.
+
+---
+
 ## 2026-06-11 — Min-Max CDI Normalization: PPO Now Significantly Beats Random on NDCG
 
 ### What Changed
