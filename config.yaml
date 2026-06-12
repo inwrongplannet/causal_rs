@@ -9,14 +9,14 @@
 # ──────────────────────────────────────────────────────────────────────────────
 
 seed: 42
-dataset: "small"
+dataset: "large"
 neg_ratio: 4
 pca_components: 32
 title_embed_dim: 768
 title_embed_model: "sentence-transformers/all-mpnet-base-v2"
 entity_embed_dim: 100
 split_ratios: [0.70, 0.15, 0.15]
-max_behavior_rows: 5000  # null / 0 for unlimited (uses sys.maxsize)
+max_behavior_rows: null  # null / 0 for unlimited (uses sys.maxsize)
 
 gpu_device: 0
 gpu_enabled: true

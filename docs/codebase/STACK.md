@@ -16,6 +16,7 @@
 | Dependency | Version | Role in system | Evidence |
 |------------|---------|----------------|----------|
 | torch | 2.6.0+cu124 | GPU tensor ops, PCA fallback, PPO policy inference | `.venv pip list`, `src/gpu_utils.py` |
+| pyarrow | 19+ | Parquet I/O for large dataset fragments | `src/data_pipeline/io_utils.py`, `requirements.txt` |
 | dowhy | 0.14 | Causal inference (identification, estimation, refutation, GCM) | `src/causal_model/model.py`, `src/counterfactual/gcm_fit.py` |
 | stable-baselines3 | 2.8.0 | PPO RL agent training | `src/rl_agent/train_ppo.py` |
 | gymnasium | 1.2.3 | RL environment interface (`NewsRecommendEnv`) | `src/rl_agent/environment.py` |
@@ -62,7 +63,7 @@ No linting config files found in project root. No pyproject.toml or setup.cfg wi
 
 - Config sources: `config.yaml` (YAML file) + `src/config.py` (loader with env var and CLI override support). Priority: CLI args > env vars (`CAUSAL_RS_*`) > YAML > defaults.
 - Required env vars: None hard-required. `CAUSAL_RS_*` can override any YAML key. `NVIDIA_CUDA_PATH` auto-detected for GPU (see `src/gpu_utils.py`). No `.env` file or `.env.example` found.
-- Deployment/runtime constraints: Windows 10+ primary target; Linux/macOS secondary. GPU optional (auto-fallback to CPU in all paths). MIND-small dataset required in `data/raw/MIND-small/`
+- Deployment/runtime constraints: Windows 10+ primary target; Linux/macOS secondary. GPU optional (auto-fallback to CPU in all paths). MIND-small or MIND-large dataset required in `data/raw/MIND-small/` or `data/raw/MIND-large/`. MIND-large (~10x data) requires 32GB+ RAM for full processing.
 
 ### 6) Evidence
 

@@ -7,7 +7,7 @@
 | Path | Purpose | Evidence |
 |------|---------|----------|
 | `src/` | Main application source code (25 Python files across 5 packages) | `src/counterfactual/`, `src/data_pipeline/`, `src/rl_agent/`, etc. |
-| `notebooks/` | Pipeline execution entry points (5 Jupyter notebooks, phases 1–5) | `phase_1_data_pipeline_mind_small.ipynb` through `phase_5_evaluation.ipynb` |
+| `notebooks/` | Pipeline execution entry points (10 Jupyter notebooks, phases 1–5 for MIND-small and MIND-large) | `phase_1_data_pipeline_mind_small.ipynb` through `phase_5_evaluation_mind_large.ipynb` |
 | `tests/` | pytest test suite (12 test files + conftest) | `tests/test_counterfactual.py`, `tests/test_environment.py`, etc. |
 | `data/` | Data artifacts (raw MIND, interim embeddings, processed SCM data, split parquet parts) | `data/raw/MIND-small/`, `data/interim/`, `data/scm_parts/` |
 | `artifacts/` | Trained models and cache (GCM model pickle, CDI cache, PPO policy checkpoint) | `artifacts/gcm_model.pkl`, `artifacts/cdi_cache.pkl`, `artifacts/checkpoints/` |

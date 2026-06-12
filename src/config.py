@@ -54,6 +54,10 @@ _DEFAULTS.update({
     "raw_small_train_dir": PROJECT_ROOT / "data" / "raw" / "MIND-small" / "train",
     "raw_small_dev_dir": PROJECT_ROOT / "data" / "raw" / "MIND-small" / "dev",
     "raw_small_test_dir": PROJECT_ROOT / "data" / "raw" / "MIND-small" / "test",
+    "raw_large_dir": PROJECT_ROOT / "data" / "raw" / "MIND-large",
+    "raw_large_train_dir": PROJECT_ROOT / "data" / "raw" / "MIND-large" / "train",
+    "raw_large_dev_dir": PROJECT_ROOT / "data" / "raw" / "MIND-large" / "dev",
+    "raw_large_test_dir": PROJECT_ROOT / "data" / "raw" / "MIND-large" / "test",
 })
 
 
@@ -140,7 +144,8 @@ def _build_config() -> Dict[str, Any]:
         k in yaml_cfg or k in env_cfg or k in cli_cfg
         for k in ("data_dir", "raw_dir", "interim_dir", "processed_dir",
                   "raw_small_dir", "raw_small_train_dir", "raw_small_dev_dir",
-                  "raw_small_test_dir")
+                  "raw_small_test_dir", "raw_large_dir", "raw_large_train_dir",
+                  "raw_large_dev_dir", "raw_large_test_dir")
     ):
         cfg.setdefault("raw_dir", data_dir / "raw")
         cfg.setdefault("interim_dir", data_dir / "interim")
@@ -149,11 +154,18 @@ def _build_config() -> Dict[str, Any]:
         cfg.setdefault("raw_small_train_dir", cfg["raw_small_dir"] / "train")
         cfg.setdefault("raw_small_dev_dir", cfg["raw_small_dir"] / "dev")
         cfg.setdefault("raw_small_test_dir", cfg["raw_small_dir"] / "test")
+        cfg.setdefault("raw_large_dir", cfg["raw_dir"] / "MIND-large")
+        cfg.setdefault("raw_large_train_dir", cfg["raw_large_dir"] / "train")
+        cfg.setdefault("raw_large_dev_dir", cfg["raw_large_dir"] / "dev")
+        cfg.setdefault("raw_large_test_dir", cfg["raw_large_dir"] / "test")
 
     # Ensure paths are Path objects
     for key in ("data_dir", "raw_dir", "interim_dir", "processed_dir",
-                "notebooks_dir", "raw_small_dir", "raw_small_train_dir",
-                "raw_small_dev_dir", "raw_small_test_dir"):
+                "notebooks_dir",
+                "raw_small_dir", "raw_small_train_dir",
+                "raw_small_dev_dir", "raw_small_test_dir",
+                "raw_large_dir", "raw_large_train_dir",
+                "raw_large_dev_dir", "raw_large_test_dir"):
         val = cfg.get(key)
         if isinstance(val, str):
             cfg[key] = Path(val)
@@ -175,6 +187,10 @@ RAW_SMALL_DIR: Path = _config["raw_small_dir"]
 RAW_SMALL_TRAIN_DIR: Path = _config["raw_small_train_dir"]
 RAW_SMALL_DEV_DIR: Path = _config["raw_small_dev_dir"]
 RAW_SMALL_TEST_DIR: Path = _config["raw_small_test_dir"]
+RAW_LARGE_DIR: Path = _config["raw_large_dir"]
+RAW_LARGE_TRAIN_DIR: Path = _config["raw_large_train_dir"]
+RAW_LARGE_DEV_DIR: Path = _config["raw_large_dev_dir"]
+RAW_LARGE_TEST_DIR: Path = _config["raw_large_test_dir"]
 
 DATASET: str = _config["dataset"]
 SEED: int = _config["seed"]
@@ -193,6 +209,7 @@ GPU_BATCH_SIZE: int = _config["gpu_batch_size"]
 _DIRS = [
     DATA_DIR, RAW_DIR, INTERIM_DIR, PROCESSED_DIR, NOTEBOOKS_DIR,
     RAW_SMALL_DIR, RAW_SMALL_TRAIN_DIR, RAW_SMALL_DEV_DIR, RAW_SMALL_TEST_DIR,
+    RAW_LARGE_DIR, RAW_LARGE_TRAIN_DIR, RAW_LARGE_DEV_DIR, RAW_LARGE_TEST_DIR,
 ]
 
 
@@ -214,6 +231,10 @@ def reload() -> None:
         "RAW_SMALL_TRAIN_DIR": cfg["raw_small_train_dir"],
         "RAW_SMALL_DEV_DIR": cfg["raw_small_dev_dir"],
         "RAW_SMALL_TEST_DIR": cfg["raw_small_test_dir"],
+        "RAW_LARGE_DIR": cfg["raw_large_dir"],
+        "RAW_LARGE_TRAIN_DIR": cfg["raw_large_train_dir"],
+        "RAW_LARGE_DEV_DIR": cfg["raw_large_dev_dir"],
+        "RAW_LARGE_TEST_DIR": cfg["raw_large_test_dir"],
         "DATASET": cfg["dataset"],
         "SEED": cfg["seed"],
         "NEG_RATIO": cfg["neg_ratio"],
@@ -231,5 +252,7 @@ def reload() -> None:
             cfg["processed_dir"], cfg["notebooks_dir"],
             cfg["raw_small_dir"], cfg["raw_small_train_dir"],
             cfg["raw_small_dev_dir"], cfg["raw_small_test_dir"],
+            cfg["raw_large_dir"], cfg["raw_large_train_dir"],
+            cfg["raw_large_dev_dir"], cfg["raw_large_test_dir"],
         ],
     })

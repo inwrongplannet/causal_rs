@@ -64,6 +64,84 @@ def discover_split_pairs(root_dir: Path) -> dict[str, dict[str, Path]]:
     return discovered
 
 
+def prepare_mind_large_dataset(raw_large_dir: Path, external_candidates: Sequence[Path]) -> dict[str, Path]:
+    split_dirs = {
+        "train": raw_large_dir / "train",
+        "dev": raw_large_dir / "dev",
+        "test": raw_large_dir / "test",
+    }
+    resolved: dict[str, dict[str, Path]] = {}
+    for split, split_dir in split_dirs.items():
+        canonical = canonicalize_split_files(split_dir)
+        if canonical:
+            resolved[split] = canonical
+
+    for candidate_root in external_candidates:
+        if not candidate_root.exists():
+            continue
+        for zip_path in sorted(candidate_root.rglob("*.zip")):
+            name = zip_path.name.lower()
+            if "mindlarge" not in name and "mind_large" not in name:
+                continue
+            if "train" in name:
+                split = "train"
+            elif "dev" in name or "valid" in name or "val" in name:
+                split = "dev"
+            elif "test" in name:
+                split = "test"
+            else:
+                continue
+            extract_zip(zip_path, split_dirs[split])
+
+    env_urls = {
+        "train": os.getenv("MIND_LARGE_TRAIN_URL", "").strip(),
+        "dev": os.getenv("MIND_LARGE_DEV_URL", "").strip(),
+        "test": os.getenv("MIND_LARGE_TEST_URL", "").strip(),
+    }
+    for split, url in env_urls.items():
+        if not url:
+            continue
+        zip_destination = raw_large_dir / f"MINDlarge_{split}.zip"
+        if not zip_destination.exists():
+            download_file(url, zip_destination)
+        extract_zip(zip_destination, split_dirs[split])
+
+    for candidate_root in external_candidates:
+        discovered = discover_split_pairs(candidate_root)
+        for split, file_pair in discovered.items():
+            split_dirs[split].mkdir(parents=True, exist_ok=True)
+            news_dst = split_dirs[split] / "news.tsv"
+            behavior_dst = split_dirs[split] / "behaviors.tsv"
+            if file_pair["news"].resolve() != news_dst.resolve():
+                shutil.copy2(file_pair["news"], news_dst)
+            if file_pair["behaviors"].resolve() != behavior_dst.resolve():
+                shutil.copy2(file_pair["behaviors"], behavior_dst)
+
+    for split, split_dir in split_dirs.items():
+        canonical = canonicalize_split_files(split_dir)
+        if canonical:
+            resolved[split] = canonical
+
+    missing_required = [split for split in ("train", "dev") if split not in resolved]
+    if missing_required:
+        raise FileNotFoundError(
+            "Missing required MIND-large splits. Expected train/dev news.tsv and behaviors.tsv. "
+            "Place local files under data/raw/MIND-large/{train,dev}/ or provide "
+            "MIND_LARGE_TRAIN_URL and MIND_LARGE_DEV_URL environment variables."
+        )
+
+    result = {
+        "train_news": resolved["train"]["news"],
+        "train_behaviors": resolved["train"]["behaviors"],
+        "dev_news": resolved["dev"]["news"],
+        "dev_behaviors": resolved["dev"]["behaviors"],
+    }
+    if "test" in resolved:
+        result["test_news"] = resolved["test"]["news"]
+        result["test_behaviors"] = resolved["test"]["behaviors"]
+    return result
+
+
 def prepare_mind_small_dataset(raw_small_dir: Path, external_candidates: Sequence[Path]) -> dict[str, Path]:
     split_dirs = {
         "train": raw_small_dir / "train",

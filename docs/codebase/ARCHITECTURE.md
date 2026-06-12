@@ -6,7 +6,7 @@
 
 - **Primary style**: **Pipeline** (sequential notebook phases) with **functional-modular** internals (each `src/` package exposes stateless functions operating on DataFrames and models).
 - **Why this classification**: The system is organized as a 5-phase sequential pipeline (Data → Causal Model → Counterfactual → RL → Evaluation), not a long-running service. Each phase is a Jupyter notebook that imports functions from a corresponding `src/` package. No event loops, request handlers, or dependency injection containers exist.
-- **Primary constraints**: (1) MIND-small dataset size (89K behavior rows → 940K SCM records), (2) limited GPU VRAM (4 GiB RTX 3050) requiring chunked batch ops, (3) DoWhy GCM API constraints (parent order, need for low-level `evaluate()` calls after DoWhy 0.14 API changes).
+- **Primary constraints**: (1) MIND-small or MIND-large dataset (MIND-small: 5K behavior rows → 940K SCM records; MIND-large: 50K+ behavior rows → 5M+ SCM records), (2) limited GPU VRAM (4 GiB RTX 3050) requiring chunked batch ops, (3) DoWhy GCM API constraints (parent order, need for low-level `evaluate()` calls after DoWhy 0.14 API changes).
 
 ### 2) System Flow
 

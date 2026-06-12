@@ -8,7 +8,7 @@
 [![PyTorch](https://img.shields.io/badge/PyTorch-2.6-ee4c2c?style=flat-square&logo=pytorch)](https://pytorch.org)
 [![DoWhy](https://img.shields.io/badge/DoWhy-0.14-7b2ff7?style=flat-square)](https://github.com/py-why/dowhy)
 [![SB3](https://img.shields.io/badge/Stable--Baselines3-2.8-green?style=flat-square)](https://stable-baselines3.readthedocs.io)
-[![MIND](https://img.shields.io/badge/Dataset-MIND--small-ff6f00?style=flat-square)](https://msnews.github.io)
+[![MIND](https://img.shields.io/badge/Dataset-MIND--small%20%7C%20MIND--large-ff6f00?style=flat-square)](https://msnews.github.io)
 [![License](https://img.shields.io/badge/License-MIT-yellow?style=flat-square)](#license)
 [![Status](https://img.shields.io/badge/Status-Research-important?style=flat-square)]()
 
@@ -30,32 +30,32 @@
 ## Architecture
 
 ```text
-MIND-small TSV            pipeline/streaming.py         gcm_fit.py
-  │                          │                            │
-  ▼                          ▼                            ▼
-┌─────────────┐   ┌──────────────────┐   ┌──────────────────────────┐
-│ Phase 1     │ → │ Phase 2          │ → │ Phase 3                  │
-│ Data        │   │ Causal Modeling  │   │ Counterfactual GCM + CDI │
-│ Pipeline    │   │ (DoWhy ATE)      │   │ (SCM fit + query)        │
-└─────────────┘   └──────────────────┘   └──────────────────────────┘
-                        │                            │
-                        ▼                            ▼
-               ┌──────────────────┐   ┌──────────────────────────┐
-               │ Phase 4          │ ← │ Phase 5                  │
-               │ PPO Training     │   │ Evaluation & Significance│
-               │ (SB3)            │   │ (NDCG, Prec, ILD)        │
-               └──────────────────┘   └──────────────────────────┘
+MIND-small / MIND-large TSV  pipeline/streaming.py         gcm_fit.py
+         │                          │                            │
+         ▼                          ▼                            ▼
+   ┌─────────────┐   ┌──────────────────┐   ┌──────────────────────────┐
+   │ Phase 1     │ → │ Phase 2          │ → │ Phase 3                  │
+   │ Data        │   │ Causal Modeling  │   │ Counterfactual GCM + CDI │
+   │ Pipeline    │   │ (DoWhy ATE)      │   │ (SCM fit + query)        │
+   └─────────────┘   └──────────────────┘   └──────────────────────────┘
+                           │                            │
+                           ▼                            ▼
+                  ┌──────────────────┐   ┌──────────────────────────┐
+                  │ Phase 4          │ ← │ Phase 5                  │
+                  │ PPO Training     │   │ Evaluation & Significance│
+                  │ (SB3)            │   │ (NDCG, Prec, ILD)        │
+                  └──────────────────┘   └──────────────────────────┘
 ```
 
 ## Pipeline Phases
 
 | Phase | Notebook | Module | What it does | Key output |
 |-------|----------|--------|-------------|------------|
-| 1 | `phase_1_data_pipeline_mind_small` | `src/data_pipeline/` | Parse MIND-small TSV → compute news embeddings (SBERT title + Wikidata entity) → build session features → construct SCM rows with Y_diversity → PCA reduction (U_pca, I_entity_pca, I_title_pca) → train/val/test split | `scm_{train,val,test}.parquet`, `phase1_report.json` |
-| 2 | `phase_2_causal_modeling` | `src/causal_model/` | DoWhy `CausalModel` → backdoor identification → IPW + linear ATE estimation (−0.01) → refutation tests (placebo, subset, random common cause) | ATE ≈ −0.01, refutation pass |
-| 3 | `phase_3_counterfactual_gcm` | `src/counterfactual/` | Build NetworkX causal DAG → auto-assign GCM mechanisms → `gcm.fit()` → per-item CDI via `predict_diversity_counterfactual()` → cache | `gcm_model.pkl`, `cdi_cache.pkl` |
-| 4 | `phase_4_ppo_training` | `src/rl_agent/` | `NewsRecommendEnv` (Gymnasium) → PPO training (200K steps, 2 envs) → save checkpoint | `ppo_causal_rs_w03.zip` |
-| 5 | `phase_5_evaluation` | `src/evaluation/` | Replay evaluation on 750 test sessions → NDCG, Precision, ILD → significance tests vs Random, Popularity | Aggregated metrics table |
+| 1 | `phase_1_data_pipeline_mind_small` / `phase_1_data_pipeline_mind_large` | `src/data_pipeline/` | Parse MIND TSV → compute news embeddings (SBERT title + Wikidata entity) → build session features → construct SCM rows with Y_diversity → PCA reduction (U_pca, I_entity_pca, I_title_pca) → train/val/test split | `scm_{train,val,test}.parquet`, `phase1_report.json` |
+| 2 | `phase_2_causal_modeling` / `phase_2_causal_modeling_mind_large` | `src/causal_model/` | DoWhy `CausalModel` → backdoor identification → IPW + linear ATE estimation → refutation tests (placebo, subset, random common cause) | ATE, refutation pass |
+| 3 | `phase_3_counterfactual_gcm` / `phase_3_counterfactual_gcm_mind_large` | `src/counterfactual/` | Build NetworkX causal DAG → auto-assign GCM mechanisms → `gcm.fit()` → per-item CDI via `predict_diversity_counterfactual()` → cache | `gcm_model.pkl`, `cdi_cache.pkl` |
+| 4 | `phase_4_ppo_training` / `phase_4_ppo_training_mind_large` | `src/rl_agent/` | `NewsRecommendEnv` (Gymnasium) → PPO training → save checkpoint | `ppo_causal_rs_w03.zip` |
+| 5 | `phase_5_evaluation` / `phase_5_evaluation_mind_large` | `src/evaluation/` | Replay evaluation on test sessions → NDCG, Precision, ILD → significance tests vs Random, Popularity | Aggregated metrics table |
 
 ## Project Structure
 
@@ -70,9 +70,9 @@ causal_rs/
 │   ├── rl_agent/               # Gymnasium environment, PPO training
 │   ├── config.py               # Config loader (reads config.yaml + env + CLI)
 │   └── gpu_utils.py            # GPU-accelerated batch ops with cupy/numpy fallback
-├── notebooks/                  # 5 phase notebooks (execution entry points)
+├── notebooks/                  # 10 phase notebooks (MIND-small + MIND-large)
 ├── tests/                      # pytest test suite (140 tests, 12 test files)
-├── data/                       # Raw MIND-small, interim, processed, SCM parquet parts
+├── data/                       # Raw MIND-small / MIND-large, interim, processed, SCM parquet parts
 ├── artifacts/                  # Trained models, CDI cache, PPO checkpoints, TB logs
 └── docs/                       # Research log, codebase docs, CausalRS reference
 ```
@@ -84,7 +84,7 @@ causal_rs/
 - **Python 3.14+** — developed and tested on CPython 3.14.5
 - **pip 25+** (comes with Python 3.14)
 - **NVIDIA GPU** optional — all operations auto-fallback to CPU
-- **MIND-small dataset** — download from [MIND News Dataset](https://msnews.github.io/)
+- **MIND-small or MIND-large dataset** — download from [MIND News Dataset](https://msnews.github.io/)
 
 ### Virtual Environment Setup
 
@@ -141,16 +141,24 @@ Edit `config.yaml` in the project root to override defaults. Priority (highest �
 
 ### Run the Pipeline
 
-Each phase is a Jupyter notebook. Execute sequentially:
+Each phase is a Jupyter notebook. Choose the dataset variant:
 
+**MIND-small (default):**
 ```bash
 .venv\Scripts\python -m jupyter nbconvert --to notebook \
     --execute notebooks/phase_1_data_pipeline_mind_small.ipynb
-
 .venv\Scripts\python -m jupyter nbconvert --to notebook \
     --execute notebooks/phase_2_causal_modeling.ipynb
-
 # ... phases 3, 4, 5
+```
+
+**MIND-large (edit `config.yaml`: `dataset: "large"`, `max_behavior_rows: null`):**
+```bash
+.venv\Scripts\python -m jupyter nbconvert --to notebook \
+    --execute notebooks/phase_1_data_pipeline_mind_large.ipynb
+.venv\Scripts\python -m jupyter nbconvert --to notebook \
+    --execute notebooks/phase_2_causal_modeling_mind_large.ipynb
+# ... phases 3, 4, 5 (mind_large variants)
 ```
 
 Or open interactively:
@@ -195,7 +203,7 @@ After min-max CDI normalization (2026-06-11):
 | **NLP** | 5.5.1 | Sentence-Transformers (all-mpnet-base-v2) |
 | **Config** | 6.0.3 | PyYAML (config.yaml loader) |
 | **GPU** | optional | cuML, cupy (auto-fallback to CPU) |
-| **Data** | — | MIND-small, PyArrow/Parquet |
+| **Data** | — | MIND-small / MIND-large, PyArrow/Parquet |
 | **Test** | 9.0.3 / 7.1.0 | pytest, pytest-cov (140 tests) |
 
 ## Research Log
