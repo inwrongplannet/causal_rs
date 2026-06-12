@@ -5,6 +5,7 @@ import zipfile
 from pathlib import Path
 from typing import Dict, List, Sequence
 
+import numpy as np
 import pandas as pd
 
 from src.config import RAW_DIR
@@ -251,6 +252,29 @@ def load_behavior_frames(behavior_paths: Sequence[Path]) -> pd.DataFrame:
     behaviors_df["ImpressionID"] = behaviors_df["ImpressionID"].astype(str)
     behaviors_df["UserID"] = behaviors_df["UserID"].astype(str)
     return behaviors_df.reset_index(drop=True)
+
+
+def load_entity_embeddings(vec_path: Path) -> dict[str, np.ndarray]:
+    """Load pre-trained TransE entity embeddings from a MIND .vec file.
+
+    Format: one entity per line: ``entity_id dim1 dim2 ... dimN`` (space-separated).
+
+    Args:
+        vec_path: Path to the ``entity_embedding.vec`` file.
+
+    Returns:
+        Dict mapping entity ID (str) -> embedding vector (np.ndarray float32).
+    """
+    lookup: dict[str, np.ndarray] = {}
+    with open(vec_path, "r", encoding="utf-8") as f:
+        for line in f:
+            parts = line.strip().split()
+            if len(parts) < 2:
+                continue
+            entity_id = parts[0]
+            vec = np.array([float(v) for v in parts[1:]], dtype=np.float32)
+            lookup[entity_id] = vec
+    return lookup
 
 
 def save_parquet(df: pd.DataFrame, output_path: Path) -> None:

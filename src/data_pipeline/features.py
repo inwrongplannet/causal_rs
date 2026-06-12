@@ -15,6 +15,7 @@ def compute_news_features(
     title_encoder: Callable[[List[str]], np.ndarray],
     sentiment_analyzer,
     entity_dim: int,
+    pretrained_entity_lookup: dict[str, np.ndarray] = None,
 ) -> pd.DataFrame:
     titles = news_df["Title"].astype(str).tolist()
     title_embeddings = title_encoder(titles)
@@ -25,7 +26,16 @@ def compute_news_features(
     for entity_blob in news_df["TitleEntities"].tolist():
         entity_ids = parse_entities(entity_blob)
         if entity_ids:
-            vectors = [stable_hash_vector(entity_id, entity_dim) for entity_id in entity_ids]
+            if pretrained_entity_lookup:
+                vectors = []
+                for eid in entity_ids:
+                    vec = pretrained_entity_lookup.get(eid)
+                    if vec is not None:
+                        vectors.append(vec)
+                    else:
+                        vectors.append(stable_hash_vector(eid, entity_dim))
+            else:
+                vectors = [stable_hash_vector(entity_id, entity_dim) for entity_id in entity_ids]
             entity_vector = mean_embeddings(vectors, entity_dim)
         else:
             entity_vector = np.zeros(entity_dim, dtype=np.float32)

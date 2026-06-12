@@ -1,15 +1,17 @@
 """
-Refit GCM on ALL 657K training rows, then compute CDI for ALL training sessions.
+Refit GCM on ALL training rows, then compute CDI for ALL training sessions.
 
-Steps:
-  1. Load full scm_train.parquet (657K rows)
-  2. Fit GCM on all rows
+Supports both MIND-small (default) and MIND-large (pass --large or set
+dataset=large in config.yaml).  Steps:
+  1. Load full scm_train.parquet
+  2. Fit GCM on all rows (sampled to 500K if MIND-large to avoid OOM)
   3. Save GCM to artifacts/gcm_model_full.pkl
-  4. Build sessions for all 3,500 impressions
+  4. Build sessions for all impressions
   5. Compute CDI for ALL (user, item) pairs
   6. Save CDI cache to artifacts/cdi_cache_full.pkl
 """
 
+import argparse
 import ast
 import logging
 import pickle
@@ -37,6 +39,12 @@ log = logging.getLogger("refit")
 DATA = ROOT / "data"
 ARTIFACTS = ROOT / "artifacts"
 
+parser = argparse.ArgumentParser(description="Refit GCM and compute full CDI cache")
+parser.add_argument("--large", action="store_true", help="Use MIND-large settings")
+parser.add_argument("--gcm-sample", type=int, default=0,
+                    help="Sample N rows for GCM fit (0 = use all)")
+args = parser.parse_args()
+
 # ---------------------------------------------------------------------------
 # 1. Load data
 # ---------------------------------------------------------------------------
@@ -49,21 +57,30 @@ print(f"  Shape: {df.shape}, users={df['user_id'].nunique()}, "
       f"impressions={df['impression_id'].nunique()}")
 print(f"  Loaded in {time.time() - t0:.1f}s")
 
+is_large = args.large or (len(df) > 1_500_000)
+if is_large:
+    print("  Detected MIND-large dataset")
+
 pca_cols = [c for c in df.columns if c.startswith("U_pca_")]
 entity_cols = [c for c in df.columns if c.startswith("I_entity_pca_")]
 title_cols = [c for c in df.columns if c.startswith("I_title_pca_")]
 print(f"  U_pca: {len(pca_cols)}, I_entity_pca: {len(entity_cols)}, I_title_pca: {len(title_cols)}")
 
 # ---------------------------------------------------------------------------
-# 2. Fit GCM on ALL data
+# 2. Fit GCM (sampled for large datasets)
 # ---------------------------------------------------------------------------
 print("\n" + "=" * 60)
-print("STEP 2: Fit GCM on ALL rows")
+print("STEP 2: Fit GCM")
 print("=" * 60)
 t0 = time.time()
-gcm_model = fit_gcm(df, pca_cols, entity_cols, title_cols)
+gcm_sample = args.gcm_sample
+if gcm_sample == 0:
+    # Auto: use all rows for small, 500K sample for large
+    gcm_sample = len(df) if not is_large else 500_000
+gcm_data = df.sample(n=min(gcm_sample, len(df)), random_state=42) if gcm_sample < len(df) else df
+gcm_model = fit_gcm(gcm_data, pca_cols, entity_cols, title_cols)
 t_gcm = time.time() - t0
-print(f"  GCM fitted on {len(df)} rows in {t_gcm:.1f}s")
+print(f"  GCM fitted on {len(gcm_data)} rows in {t_gcm:.1f}s")
 
 gcm_path = ARTIFACTS / "gcm_model_full.pkl"
 gcm_path.parent.mkdir(parents=True, exist_ok=True)
@@ -97,7 +114,10 @@ categories = sorted(df["I_category"].unique().tolist())
 print(f"  News lookup: {len(news_df)} items, categories: {len(categories)}")
 
 # Build session objects
+n_sessions_limit = None if not is_large else 10000  # cap for MIND-large memory
 for imp_id, group in df.groupby("impression_id", sort=False):
+    if n_sessions_limit and len(sessions) >= n_sessions_limit:
+        break
     user_id = group["user_id"].iloc[0]
     history_emb = _to_array(group["U_history_emb_full"].iloc[0])
     item_ids = group["item_id"].tolist()
