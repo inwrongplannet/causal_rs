@@ -113,7 +113,7 @@ cdi_cache = pickle.load(open(ARTIFACTS / "cdi_cache.pkl", "rb"))
 test_sessions = build_sessions(test_df)
 news_df = test_df[["item_id", "I_title_emb_full"]].drop_duplicates("item_id").set_index("item_id")
 
-model = PPO.load(str(MODEL_PATH), device="cpu")
+model = PPO.load(str(MODEL_PATH), device="cuda")
 print(f"Model loaded. Test sessions: {len(test_sessions)}, News items: {len(news_df)}")
 
 # ---- Evaluate ----

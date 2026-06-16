@@ -147,7 +147,7 @@ news_df = test_df[["item_id", "I_title_emb_full", "I_category"]].drop_duplicates
 news_df = news_df.set_index("item_id")
 print(f"  News lookup: {len(news_df)} unique items")
 
-model = PPO.load(str(MODEL_PATH), device="cpu")
+model = PPO.load(str(MODEL_PATH), device="cuda")
 print(f"\nPPO model loaded from {MODEL_PATH}.zip")
 
 # --- Evaluation function ---

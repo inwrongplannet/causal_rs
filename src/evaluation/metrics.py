@@ -139,12 +139,13 @@ def replay_evaluate(policy, test_sessions, news_df, cdi_cache, w=0.6, K=10, T=10
         env = NewsRecommendEnv([session], news_df, cdi_cache, w=w, K=20, T=T)
         obs, _ = env.reset()
         rec_lists = []
-        for step in range(T):
+        for step in range(min(T, len(session.candidates))):
             action, _ = policy.predict(obs, deterministic=True)
-            q_values = policy.policy.evaluate_actions(
-                obs[None], np.arange(env.K)
-            )
-            ranked = np.argsort(q_values)[::-1][:K]
+            device = next(policy.parameters()).device
+            obs_tensor = torch.from_numpy(obs).float().unsqueeze(0).to(device)
+            dist = policy.get_distribution(obs_tensor)
+            logits = dist.distribution.logits
+            ranked = torch.argsort(logits[0], descending=True)[:K].cpu().numpy()
             rec_lists.append(ranked)
             obs, _, done, _, _ = env.step(action)
             if done:

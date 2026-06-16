@@ -4,84 +4,72 @@
 
 ### 1) Architectural Style
 
-- **Primary style**: **Pipeline** (sequential notebook phases) with **functional-modular** internals (each `src/` package exposes stateless functions operating on DataFrames and models).
-- **Why this classification**: The system is organized as a 5-phase sequential pipeline (Data → Causal Model → Counterfactual → RL → Evaluation), not a long-running service. Each phase is a Jupyter notebook that imports functions from a corresponding `src/` package. No event loops, request handlers, or dependency injection containers exist.
-- **Primary constraints**: (1) MIND-small or MIND-large dataset (MIND-small: 5K behavior rows → 940K SCM records; MIND-large: 50K+ behavior rows → 5M+ SCM records), (2) limited GPU VRAM (4 GiB RTX 3050) requiring chunked batch ops, (3) DoWhy GCM API constraints (parent order, need for low-level `evaluate()` calls after DoWhy 0.14 API changes).
+- Primary style: Pipeline (sequential 5-phase data flow) with layered module boundaries
+- Why this classification: Each phase reads the output of the previous phase via parquet files. The pipeline progresses from raw TSV data → causal SCM → GCM counterfactual → RL training → evaluation. Within each phase, modules are organized by layer (data → model → evaluation).
+- Primary constraints:
+  1. Single-machine execution (no distributed processing)
+  2. GPU-optional design with transparent cupy/numpy fallback
+  3. Memory-bounded chunked processing for 4 GiB VRAM
 
 ### 2) System Flow
 
 ```text
-MIND-small TSV files
-    │
-    ▼
-[Phase 1: Data Pipeline]          src/data_pipeline/
-    • parse_entities(), parse_history(), parse_impressions()
-    • compute_news_features() → I_title_emb_full, I_entity_emb_full, I_sentiment, I_category
-    • build_session_user_features() → U_history_emb_full, U_dwell_mean
-    • build_scm_dataframe() → one row per (impression, candidate, click), Y_diversity
-    • reduce_embedding_columns() → PCA (U_pca_* 32d, I_entity_pca_* 32d)
-    • split_by_impression_id() → train/val/test + phase1_report.json
-    │
-    ▼
-[Phase 2: Causal Modeling]        src/causal_model/
-    • build_causal_graph_gml() → GML string
-    • create_causal_model() → DoWhy CausalModel
-    • identify_effect() → backdoor estimand
-    • estimate_ate_ipw() / estimate_ate_linear() → ATE ≈ −0.01
-    • run_refutations() → placebo/subset/random-common-cause
-    │
-    ▼
-[Phase 3: Counterfactual GCM]     src/counterfactual/
-    • build_causal_graph() → NetworkX DiGraph (U_pca_* + I_entity_pca_* as parents of outcomes)
-    • auto.assign_causal_mechanisms() → empirical distributions & additive noise models
-    • gcm.fit() → fitted StructuralCausalModel
-    • predict_diversity_counterfactual() → E[Y_diversity | do(A=1, I_category=x, I_sentiment=y, I_entity_pca=z)]
-    • precompute_cdi_cache() → {(user_id, item_id): CDI} for all session × candidate pairs
-    │
-    ▼
-[Phase 4: PPO Training]           src/rl_agent/
-    • NewsRecommendEnv (Gymnasium) — state = history_emb + CDI, action = pick candidate, reward = w·click + (1−w)·CDI
-    • train_ppo() → stable-baselines3 PPO, saves checkpoint
-    │
-    ▼
-[Phase 5: Evaluation]             src/evaluation/
-    • replay_evaluate() → deterministically evaluate PPO on test sessions
-    • ndcg_at_k(), precision_at_k(), ild() → per-session metrics
-    • aggregate_metrics() → mean/std per method
-    • significance_test() → paired t-test vs baselines (Random, Popularity)
+Phase 1 (Data Pipeline):
+  MIND TSV → parse_impressions/parse_history → compute_news_features (SBERT title + entity)
+  → build_session_user_features → build_scm_dataframe (batch Y_diversity via GPU)
+  → reduce_embedding_columns (PCA) → split_by_impression_id → save SCM parquet
+
+Phase 2 (Causal Modeling):
+  SCM parquet → DoWhy CausalModel → identify_effect → estimate_ate_ipw/linear
+  → run_refutations (placebo, subset, random common cause)
+
+Phase 3 (Counterfactual GCM):
+  SCM train parquet → build_causal_graph (NetworkX) → fit_gcm (auto.assign_causal_mechanisms)
+  → precompute_cdi_cache (per-user, per-item counterfactual queries) → save pickles
+
+Phase 4 (PPO Training):
+  SCM train + CDI cache → NewsRecommendEnv (Gymnasium) → train_ppo (SB3)
+  → save checkpoint
+
+Phase 5 (Evaluation):
+  SCM test + CDI cache + PPO model → replay_evaluate → ndcg_at_k/precision_at_k/ild
+  → significance_test (paired t-test, Cohen's d)
 ```
 
 ### 3) Layer/Module Responsibilities
 
 | Layer or module | Owns | Must not own | Evidence |
 |-----------------|------|--------------|----------|
-| `src/data_pipeline/` | Raw data loading (TSV→DF), entity parsing, sentiment, embedding inference (SBERT), feature engineering, SCM record building, streaming chunk processing, PCA reduction, train/val/test split, quality checks | Causal inference, counterfactual reasoning, RL training | `scm_builder.py` builds the SCM DataFrame; `streaming.py` does chunked processing; `io_utils.py` loads MIND |
-| `src/causal_model/` | DoWhy model creation, backdoor identification, IPW/linear ATE estimation, refutation tests (placebo, subset, random common cause) | Data loading, GCM fitting, RL environment | `model.py` wraps DoWhy; `refutation.py` runs 3 refuters |
-| `src/counterfactual/` | NetworkX causal DAG, gcm.StructuralCausalModel fitting, counterfactual query, CDI precomputation cache | DoWhy refutations, data pipeline, PPO training | `gcm_fit.py`, `queries.py`, `precompute_cdi.py` |
-| `src/rl_agent/` | Gymnasium environment (state/action/reward), PPO agent training with SB3 | Causal inference, evaluation metrics, data loading | `environment.py`, `train_ppo.py` |
-| `src/evaluation/` | NDCG, Precision, ILD, replay evaluation, aggregate metrics, significance testing | RL training, causal graph construction, data pipeline | `metrics.py` |
-| `src/gpu_utils.py` | GPU-accelerated batch ops (L2 normalize, cosine sim, cosine diversity), cupy/numpy fallback, chunked processing | Any domain logic | `gpu_utils.py` — pure numerical ops |
+| `data_pipeline` | TSV parsing, feature extraction, SCM DataFrame construction, streaming chunk processing | Causal inference, RL training | `src/data_pipeline/scm_builder.py`, `src/data_pipeline/features.py` |
+| `causal_model` | DoWhy model creation, ATE estimation, refutation | Data I/O, GCM fitting | `src/causal_model/model.py`, `src/causal_model/refutation.py` |
+| `counterfactual` | GCM graph, fitting, counterfactual queries, CDI cache | ATE estimation, PPO | `src/counterfactual/gcm_fit.py`, `src/counterfactual/queries.py` |
+| `rl_agent` | Gymnasium env, PPO training, reward shaping | Evaluation metrics, causal inference | `src/rl_agent/environment.py`, `src/rl_agent/train_ppo.py` |
+| `evaluation` | Metrics computation, significance tests | Training, data pipeline | `src/evaluation/metrics.py` |
+| `gpu_utils` | GPU-accelerated batch ops with CPU fallback | Domain-specific logic | `src/gpu_utils.py` |
+| `config` | Config loading (YAML + env + CLI + defaults) | Business logic | `src/config.py` |
 
 ### 4) Reused Patterns
 
 | Pattern | Where found | Why it exists |
 |---------|-------------|---------------|
-| GPU/CPU transparent fallback | `src/gpu_utils.py`, `src/data_pipeline/embedder.py`, `src/data_pipeline/scm_builder.py` (_try_import_pca) | MIND-small runs on laptops with or without NVIDIA GPU; no code changes needed to toggle |
-| Chunked batch processing | `src/gpu_utils.py` (GPU_BATCH_SIZE=4096), `src/data_pipeline/streaming.py` (pd.read_csv chunksize) | Memory constraint: 4 GiB GPU VRAM, limited system RAM |
-| Module-level try/except for optional deps | `src/gpu_utils.py` (cupy import), `src/data_pipeline/scm_builder.py` (cuml import), `src/data_pipeline/embedder.py` (sentence-transformers fallback) | No hard dependency on GPU libraries; graceful degradation |
-| Lazy parallel environment | `src/rl_agent/train_ppo.py` (SubprocVecEnv on Unix, DummyVecEnv on Windows) | Windows does not support fork-based multiprocessing for large session objects |
-| Data frame as cross-module contract | All phases use `pd.DataFrame` for inter-module data exchange | Standard Python data science pattern; enables notebook-inspectable outputs |
+| GPU/CPU transparent fallback | `src/gpu_utils.py:60-76` (chunked batch ops), `src/data_pipeline/embedder.py:22-62` (sentence-transformers → HashingVectorizer) | Single codebase runs on GPU or CPU without changes |
+| Chunked batch processing | `src/gpu_utils.py:135-157` (GPU_BATCH_SIZE=4096), `src/data_pipeline/streaming.py:71-121` (chunksize=2000) | Stays within 4 GiB VRAM; no OOM |
+| Factory function | `src/rl_agent/train_ppo.py:11-25` (`make_env`), `src/data_pipeline/embedder.py:22-62` (`build_title_encoder`) | Creates configured instances lazily |
+| Singleton config | `src/config.py:176` (`_config` at module level) | Single config state accessible via imports |
+| Pickle persistence | `src/counterfactual/precompute_cdi.py:73-77`, `src/counterfactual/precompute_cdi.py:82-92` | Serialize fitted GCM and CDI cache between phases |
 
 ### 5) Known Architectural Risks
 
-1. **CDI lacks per-item discrimination** — The GCM counterfactual query produces CDI scores that vary by only ~0.01–0.02 within a session (all items ≈ 0.88–0.90). **Partially mitigated 2026-06-11**: min-max normalization in `NewsRecommendEnv._min_max_cdi()` amplifies the tiny range to [0,1] per step. PPO now significantly beats Random on NDCG (p=0.017). The root cause (raw CDI's narrow range) persists — normalization is a workaround.
-2. **Single commit — no iterative history** — The repository has only 1 commit (`5e0ba82`), so no change tracking, blame, or rollback capability exists.
-3. **Config as global mutable state** — `src/config.py` still exports module-level constants imported by consumers. This was partially mitigated by the YAML loader (CLI/env/YAML overrides), but the module-level constants remain global and cannot be easily swapped per experiment without `reload()`.
+1. **GCM ↔ PPO coupling via CDI**: CDI is precomputed and cached as a static lookup. If the GCM is refitted, the entire CDI cache must be regenerated (~73 min for 656K entries). No cache-invalidation mechanism exists.
+2. **Single-machine scaling**: The pipeline is designed for a single workstation. No distributed processing, no sharding. Full MIND-large (65M rows after SCM expansion) would exceed available memory/VRAM.
+3. **Sequential phase dependency**: Phases 2-5 depend on phase 1 output on disk. No explicit dependency graph or automated pipeline orchestration — must be run in order manually.
+4. **Notebook state coupling**: Phases 2-5 notebooks depend on output parquets from previous phases. No formal contract or schema validation beyond `run_quality_checks()`.
 
 ### 6) Evidence
 
-- `src/data_pipeline/scm_builder.py` — SCM DataFrame construction (the central data contract)
-- `src/counterfactual/gcm_fit.py` — GCM graph and fit (counterfactual engine)
-- `src/rl_agent/environment.py` — RL environment (reward = w·click + (1−w)·CDI)
-- `src/evaluation/metrics.py` — Evaluation and significance testing
-- `src/gpu_utils.py` — Chunked batch GPU ops
+- `README.md` (architecture diagram, lines 32-48)
+- `src/data_pipeline/scm_builder.py` (SCM building flow)
+- `src/counterfactual/gcm_fit.py` (GCM graph + fitting)
+- `src/rl_agent/environment.py` (RL env)
+- `src/evaluation/metrics.py` (evaluation flow)
+- `notebooks/` (5 sequential notebooks)

@@ -6,60 +6,62 @@
 
 | Severity | Concern | Evidence | Impact | Suggested action |
 |----------|---------|----------|--------|------------------|
-| High | **CDI scores lack per-item discrimination** — all items in a session get CDI ≈ 0.88–0.90, range < 0.02. This makes the PPO reward nearly constant. | `src/counterfactual/queries.py`, `docs/RESEARCH_LOG.md` (2026-06-11 RL-Guided Hyperparameter Tuning) | Core research hypothesis (causal RL improves relevance) was unprovable. | **Partially mitigated 2026-06-11**: min-max CDI normalization in `NewsRecommendEnv._min_max_cdi()` now amplifies the raw CDI range to [0,1] per step. PPO now significantly beats Random on NDCG (p=0.017). Raw CDI still lacks discriminative power — normalization is a workaround, not a root fix. |
-| High | **Single commit — no iterative development history** — repository has only 1 commit (`5e0ba82`). No change tracking, blame, or rollback across experimental iterations. | `git log --oneline` shows only `5e0ba82` | Any experimental change is irreversible. Cannot identify when bugs were introduced between runs. | Establish branch-per-experiment workflow; commit regularly. |
-| Medium | **`src/causal_model/` has no tests** — graph.py, model.py, cdi.py, refutation.py are completely untested. | Scan shows no test files covering `src/causal_model/`. 140 total tests, none in this module. | Causal identification and ATE estimation could have silent bugs. Refutation logic could silently skip tests. | Add unit tests for GML graph generation, model creation, IPW estimation, refutation wrappers. |
-| Medium | **Config as global mutable state** — `src/config.py` exports module-level constants imported by consumers. Partially mitigated by YAML loader (`config.yaml` + `CAUSAL_RS_*` env vars + `--config.` CLI overrides), but constants remain global and not injectable per experiment without `reload()`. | `src/config.py`, `config.yaml` | Experiments with different PCA dims or seed require modifying `config.yaml` or overloaded env vars. | Replace module-level constants with a config dataclass injected at call sites. |
-| Medium | **`requirements.txt` is a full pip freeze** (767 lines) — not a minimal dependency declaration. Packages like `2captcha-python`, `celery`, `boto3` are not used but listed. Extraneous packages are not actually installed in `.venv`. | `requirements.txt` scan shows 767 lines; `.venv pip list` confirms unused packages are absent. | Bloated install guide, unclear which packages are truly required. Could hide version conflicts if regenerated. | Generate minimal `pyproject.toml` with only direct dependencies. |
+| High | **CDI lacks per-item discrimination within sessions** — ~0.0005 variance across items means PPO reward is nearly constant | `docs/RESEARCH_LOG.md:712-713`, `src/counterfactual/queries.py:30-97` | PPO cannot learn meaningful ranking; performs ≈ Random on relevance | [ASK USER] Intended fix direction — min-max normalization (implemented), GCM mechanism tuning, or alternative diversity signal |
+| High | **No CI/CD pipeline** — no automated tests, linting, or coverage enforcement | Scan output line 351 (no CI/CD detected) | Regressions not caught before execution | [ASK USER] Add GitHub Actions for automated test run |
+| High | **`src/causal_model/` (4 modules) has zero test coverage** | `docs/RESEARCH_LOG.md:193` | Regressions in ATE estimation or refutation go undetected | Add unit tests for model creation, ATE estimation, refutation |
+| Medium | **No schema validation across pipeline phases** — Phase 2-5 assume parquet column names from Phase 1 | `src/data_pipeline/scm_builder.py:254-313` (quality checks only within Phase 1) | Silent failures if column names change | Define formal column contract for SCM parquet files |
+| Medium | **Arrow MemoryError risk** — full MIND-large parquet loading can exceed 2 GB contiguous allocation | `docs/RESEARCH_LOG.md:467-469` | Pipeline crashes on MIND-large load | Fragment loading implemented; verify on full dataset |
 
 ### 2) Technical Debt
 
 | Debt item | Why it exists | Where | Risk if ignored | Suggested fix |
 |-----------|---------------|-------|-----------------|---------------|
-| `requirements.txt` is a full `pip freeze` output | Quick setup — `pip freeze > requirements.txt` from working venv | `requirements.txt` (767 lines) | Unclear dependency tree, extraneous packages, version conflicts when collaborating | Generate a proper `pyproject.toml` with only direct dependencies and pinned sub-dependencies |
-| No `pyproject.toml` or `setup.py` | Project started as a notebook; never formalized as a package | Project root | Cannot `pip install -e .` to use `src` as an importable package from arbitrary directories | Create `pyproject.toml` with `[project]` and `[build-system]` sections |
-| `src/causal_model/` has no tests | Notebook-first development; tests were added only for later modules | `tests/` directory lists no files matching `causal_model` | ATE estimation and refutation logic could have silent bugs | Add `test_graph.py`, `test_model.py`, `test_refutation.py` |
-| No linter configuration | Project grew organically from notebooks | Project root | Inconsistent code style across contributors, no automated quality enforcement | Add `ruff` or `flake8` config to `pyproject.toml` |
-| Static `docs/codebase/` docs | Generated from a one-time codebase scan | `docs/codebase/` | Will go stale as code changes; no CI check | Add a CI step that re-generates or validates docs against the current source |
+| `src/config.py` global module-level constants | Legacy pattern before YAML/CLI config was added | `src/config.py:181-207` | Cyclic import risk; config not refreshable at runtime cleanly | [ASK USER] Replace with dependency-injected config object |
+| `scripts/run_phase4_large.py` duplicates session-building logic | Copied from notebook with minor param changes | `scripts/run_phase4_large.py:27-49` | Session-building logic drifts from notebook code | Extract shared session builder into `src/` |
+| `eval_only.py` duplicates evaluation logic | Created for quick iteration | `scripts/eval_only.py:55-105` | Evaluation bugs differ from `metrics.py` | Use `src/evaluation/metrics.py` exclusively |
+| Pickle persistence for GCM and CDI | Quick serialization | `artifacts/` | Version skew; large file sizes (gcm_model_full.pkl ~200 MB) | Use joblib or model versioning |
+| Windows SubprocVecEnv workaround | SubprocVecEnv fails on Windows with large pickle payloads | `src/rl_agent/train_ppo.py:30-32` | Single-process training only on Windows | Use shared memory or ray |
 
 ### 3) Security Concerns
 
 | Risk | OWASP category (if applicable) | Evidence | Current mitigation | Gap |
 |------|--------------------------------|----------|--------------------|-----|
-| Pickle deserialization of untrusted artifacts | A08 (Software and Data Integrity Failures) | `pickle.load(open('artifacts/cdi_cache.pkl', 'rb'))` in `src/counterfactual/precompute_cdi.py` | Artifacts are local files, not user-supplied | No integrity check (hash/signature) on loaded pickle files. If an attacker replaces `gcm_model.pkl` or `cdi_cache.pkl`, arbitrary code execution is possible. |
-| Python installer in project root | N/A | `python-3.13.5-amd64.exe` was found in project root; confirmed removed as of 2026-06-11 | N/A — file has been cleaned up | Should not commit executables to version control. `.gitignore` already excludes `.exe`. |
+| `eval()` in old notebook versions | A03:2021-Injection | `docs/RESEARCH_LOG.md:105` (bug #5 — now fixed to `ast.literal_eval`) | All notebooks now use `ast.literal_eval()` | Verify no `eval()` remains in any notebook cell |
+| No input validation on MIND TSV loads | N/A (local research project) | `src/data_pipeline/io_utils.py:226-254` | pandas reads with strict dtype | N/A for research context |
 
 ### 4) Performance and Scaling Concerns
 
 | Concern | Evidence | Current symptom | Scaling risk | Suggested improvement |
 |---------|----------|-----------------|-------------|-----------------------|
-| MIND-large dataset (~50K behavior rows, millions of SCM records) causes OOM risk | `config.yaml` sets `max_behavior_rows: null` for unlimited; `src/data_pipeline/streaming.py` handles chunked Phase 1 processing | MIND-large with unlimited rows can produce 5M+ SCM records, requiring 32GB+ RAM for PCA and parquet assembly | Streaming chunked pipeline only covers Phase 1. Phase 3 GCM fit loads all data into memory. CDI precomputation over MIND-large pairs is extremely slow. | Extend chunked processing to PCA reduction and GCM fitting. Add incremental CDI computation. Use the fragment-loading approach for Phase 3 data loading. |
-| CDI precomputation: 38 pairs/s | `docs/RESEARCH_LOG.md`: 500 pairs in 2.7 s = ~38 pairs/s | Full 3500×150 = 525K pairs would take ~3.8 h. | 525K pairs is an upper bound; realistic candidate pools are smaller, but still hours. | Batch CDI computation (vectorize the GCM evaluate call over candidates) to reduce from O(pairs) to O(sessions). |
-| PPO training throughput ~204 steps/s (CPU) | `docs/RESEARCH_LOG.md` (2026-06-11 Phase 3 & 4) | 200K timesteps in ~16 min. | Training a production-quality policy would need 5M+ timesteps → 7+ hours on CPU. | GPU PPO policy (CNN/Transformer encoder) or use stable-baselines3's MlpPolicy on GPU. |
+| CDI precomputation O(n*m) | `src/counterfactual/precompute_cdi.py:40-69` | 73.5 min for 656K pairs (149 pairs/s) | Full MIND-large would take hours | Parallelize per-session; vectorize across items |
+| GCM fit O(rows * nodes) | `src/counterfactual/gcm_fit.py:74-117` | 108 s for 657K rows × 102 nodes | Doubling rows quadruples fit time | Sample training data; use incremental fitting |
+| PPO training with large session objects | `src/rl_agent/train_ppo.py:28-32` | DummyVecEnv on Windows (single-process) | Cannot scale to full MIND-large training | Implement multi-GPU or ray-based parallelism |
+| Parquet columnar embedding storage | `src/data_pipeline/scm_builder.py:280-287` | String-serialized embeddings inflate file size/load time | MIND-large parquet loads are slow | Store embeddings as float32 numpy arrays in parquet |
 
 ### 5) Fragile/High-Churn Areas
 
 | Area | Why fragile | Churn signal | Safe change strategy |
 |------|-------------|-------------|----------------------|
-| `src/counterfactual/` | Heavily dependent on DoWhy 0.14 internals (`PARENTS_DURING_FIT`, `AdditiveNoiseModel.evaluate`, auto-encoder assignment). Upstream DoWhy API changes could silently break. | 3 significant refactors in last 3 development sessions to work around API changes (counterfactual_samples removed, parent order fix, auto encoder changes) | Pin DoWhy to 0.14; add integration tests that verify GCM fit + CDI query produce valid outputs; wrap DoWhy access behind a thin adapter that can be swapped if API changes. |
-| `src/gpu_utils.py` | Chunked batch ops with dual cupy/numpy paths triple the code surface. GPU backend detection is fragile (probes CUDA_PATH, PyTorch cuda, cupy import). | Implemented in a single session with 17 tests; has been refactored once for chunking | Keep test coverage high (17 tests); add a `GPU_ENABLED=False` CI run to ensure CPU path is always exercised. |
-| `src/data_pipeline/io_utils.py` | Multiple fallback strategies for data loading (local files, extracted zips, env URL). Zip extraction can hang. | Caused pipeline halts in 2 earlier runs (zip extraction hang, ArrowMemoryError) | Add explicit timeout for zip extraction; add CRC validation on extracted files; prefer pre-extracted directories over runtime extraction. |
+| `src/data_pipeline/scm_builder.py` | Contains SCM building, PCA, split, quality checks — multiple concerns | 2 commits in last 5 (scan lines 306-327) | Refactor into focused modules; add unit tests |
+| `src/data_pipeline/io_utils.py` | Handles dataset discovery across 3 sources (local, zip, env URL) | 3 commits (highest churn, scan line 306) | Add tests for each discovery strategy |
+| `notebooks/` (all 5 phases) | Bug-fixed multiple times; `eval()` → `ast.literal_eval()`, import errors, MemoryError | 5 notebooks in top churn (scan lines 314-317) | Critical-path logic should be in `src/`, notebooks as thin orchestrators |
 
-### 6) `[ASK USER]` Questions
+### 6) Resolved Decisions
 
-1. [ASK USER] The CDI scores lack per-item discrimination (all items in a session get CDI ≈ 0.88–0.90). Is the intended fix: (a) normalize CDI within session, (b) add more item features to the GCM graph (e.g., I_title_pca), (c) change the counterfactual intervention target, or (d) accept PPO ≈ Random as the current baseline?
-2. [ASK USER] Do you want automated CI (GitHub Actions) for running tests on push, or is the project intended as a local-only research tool?
-3. [ASK USER] Should a minimum coverage threshold be enforced with pytest-cov?
+The following intent-dependent questions have been answered by the team:
 
-#### Resolved
-- YAML config file with CLI/env overrides — implemented 2026-06-11. `config.yaml` + `src/config.py` loader supports `--config.key=value` CLI args, `CAUSAL_RS_KEY` env vars, and YAML defaults.
-- Min-max CDI normalization — implemented 2026-06-11 in `NewsRecommendEnv._min_max_cdi()`. Raw CDI scores (range ≈ 0.01 per session) are normalized to [0,1] per step. PPO now significantly beats Random on NDCG (p=0.017, d=0.082). This partially addresses the "CDI lacks per-item discrimination" risk. The root cause (raw CDI's narrow range) persists.
+1. **CDI discrimination**: Accept current results — no fix planned.
+2. **Config refactor**: Replace `src/config.py` global constants with dependency-injected config object.
+3. **CI pipeline**: Not needed.
+4. **Coverage threshold**: Add coverage tool with threshold.
+5. **Session-builder extraction**: Keep as-is (notebooks/scripts).
+6. **Windows SubprocVecEnv**: Current DummyVecEnv workaround is acceptable.
 
 ### 7) Evidence
 
-- `src/counterfactual/queries.py` — CDI computation logic (root cause of the discriminative-power gap)
-- `docs/RESEARCH_LOG.md` (2026-06-11 — Full Pipeline, RL-Guided Hyperparameter Tuning) — metrics and diagnosis
-- `src/config.py` — config module (partially mitigated by YAML loader)
-- `config.yaml` — YAML config file (replaces hardcoded config)
-- `tests/` directory listing — missing `test_causal_model*` files
-- `requirements.txt` — 767-line full freeze
+- Scan output (TODO/FIXME: none found, lines 295-296)
+- Scan output (high-churn files, lines 305-326)
+- Scan output (no CI/CD, line 351; no testing config, line 360)
+- `docs/RESEARCH_LOG.md` (bug reports, performance metrics)
+- `src/data_pipeline/scm_builder.py` (quality checks)
+- `src/counterfactual/queries.py` (CDI computation)

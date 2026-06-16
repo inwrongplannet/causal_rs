@@ -6,68 +6,69 @@
 
 | Area | Value | Evidence |
 |------|-------|----------|
-| Primary language | Python 3.13+ | `.venv` created with 3.14.5, `requirements.txt`, `src/config.py` |
-| Runtime + version | CPython 3.14.5 | `python --version`, `src/config.py` |
-| Package manager | pip (via virtual env `.venv/`) | `requirements.txt` is a full `pip freeze` output |
-| Module/build system | Standard Python package (no build backend declared) | `src/__init__.py`, no `pyproject.toml` or `setup.py` |
+| Primary language | Python 3.14+ | `README.md:7`, Python 3.14.5 via `python --version` |
+| Runtime + version | CPython 3.14.5 | `python --version` |
+| Package manager | pip 25+ | `README.md:84-85`, `requirements.txt` |
+| Module/build system | Pure Python (no build step), Jupyter notebooks | No `setup.py`/`pyproject.toml`, notebooks in `notebooks/` |
 
 ### 2) Production Frameworks and Dependencies
 
 | Dependency | Version | Role in system | Evidence |
 |------------|---------|----------------|----------|
-| torch | 2.6.0+cu124 | GPU tensor ops, PCA fallback, PPO policy inference | `.venv pip list`, `src/gpu_utils.py` |
-| pyarrow | 19+ | Parquet I/O for large dataset fragments | `src/data_pipeline/io_utils.py`, `requirements.txt` |
-| dowhy | 0.14 | Causal inference (identification, estimation, refutation, GCM) | `src/causal_model/model.py`, `src/counterfactual/gcm_fit.py` |
-| stable-baselines3 | 2.8.0 | PPO RL agent training | `src/rl_agent/train_ppo.py` |
-| gymnasium | 1.2.3 | RL environment interface (`NewsRecommendEnv`) | `src/rl_agent/environment.py` |
-| pandas | 3.0.3 | DataFrame-based data pipeline, features, SCM building | `src/data_pipeline/scm_builder.py`, everywhere |
-| numpy | 2.4.6 | Numerical ops, embeddings, diversity computation | `src/gpu_utils.py`, `src/data_pipeline/nlp_utils.py` |
-| scikit-learn | 1.9.0 | PCA fallback, `HashingVectorizer` fallback, logistic regression | `src/data_pipeline/scm_builder.py`, `src/data_pipeline/embedder.py`, `src/causal_model/model.py` |
-| sentence-transformers | 5.5.1 | Title embedding (all-mpnet-base-v2, 768-dim) | `src/config.py` (`TITLE_EMBED_MODEL`), `src/data_pipeline/embedder.py` |
-| transformers | 5.10.2 | HuggingFace model loading (backing sentence-transformers) | `.venv pip list` |
-| networkx | 3.6.1 | Causal DAG construction for GCM | `src/counterfactual/gcm_fit.py` |
-| pyyaml | 6.0.3 | YAML config file loader (config.yaml) | `src/config.py`, `config.yaml` |
-| matplotlib | 3.10.9 | Positivity-check plot, metric visualizations | `src/causal_model/model.py` |
-| tqdm | 4.68.2 | Progress bars in CDI precomputation | `src/counterfactual/precompute_cdi.py` |
+| PyTorch | 2.6.0+cu124 | Deep learning backend, GPU tensor ops for env inference | `README.md:117` |
+| DoWhy | 0.14 | Causal inference (CausalModel, GCM, refutation) | `README.md:118`, `src/causal_model/model.py:8-9` |
+| stable-baselines3 | 2.8.0 | PPO RL agent training | `README.md:119`, `src/rl_agent/train_ppo.py:5-6` |
+| Gymnasium | 1.2.3 | RL environment interface | `README.md:120`, `src/rl_agent/environment.py:4` |
+| pandas | 3.0.3 | Data pipeline, parquet I/O, DataFrame ops | `README.md:121` |
+| numpy | 2.4.6 | Numerical ops, GPU fallback | `README.md:122` |
+| scikit-learn | 1.9.0 | PCA, HashingVectorizer fallback | `README.md:123` |
+| sentence-transformers | 5.5.1 | Title embedding (all-mpnet-base-v2) | `README.md:124`, `src/data_pipeline/embedder.py:24-27` |
+| NetworkX | 3.6.1 | Causal DAG for GCM | `README.md:125`, `src/counterfactual/gcm_fit.py:2` |
+| PyYAML | 6.0.3 | Config file loader | `README.md:126`, `src/config.py:20` |
+| matplotlib | 3.10.9 | Propensity score plots | `README.md:127`, `src/causal_model/model.py:77` |
+| scipy | — | Significance tests (paired t-test, Cohen's d) | `src/evaluation/metrics.py:3,193` |
 
 ### 3) Development Toolchain
 
 | Tool | Purpose | Evidence |
 |------|---------|----------|
-| pytest | Test runner (140 tests) | `tests/*.py`, `pytest==9.0.3` |
-| pytest-cov | Coverage measurement (installed, not configured) | `pytest-cov==7.1.0` |
-| black | Code formatter (declared in requirements.txt, not installed) | `black==26.1.0` in `requirements.txt` |
-
-No linting config files found in project root. No pyproject.toml or setup.cfg with tool configs.
+| pytest | 9.0.3 | Test runner | `README.md:128`, `.pytest_cache/v/cache/` |
+| pytest-cov | 7.1.0 | Optional coverage | `README.md:129` |
+| black | 26.1.0 | Code formatter (installed but not configured) | `requirements.txt` (scan: line 255) |
+| Jupyter | — | Notebook execution environment | `README.md:144-168` |
 
 ### 4) Key Commands
 
 ```bash
-# Install (from existing venv)
-.venv\Scripts\pip install -r requirements.txt
-
-# Run all tests
-.venv\Scripts\python -m pytest tests/ -v
-
-# Run a specific test file
-.venv\Scripts\python -m pytest tests/test_counterfactual.py -v
-
-# Execute a pipeline phase (Jupyter notebook)
-.venv\Scripts\python -m jupyter nbconvert --to notebook --execute notebooks/phase_3_counterfactual_gcm.ipynb
-
-# Run a Python module directly
-.venv\Scripts\python -c "from src.counterfactual.gcm_fit import fit_gcm; ..."
+pip install -r requirements.txt
+python -m pytest tests/ -v
+python -m pytest tests/ --cov=src
+jupyter notebook
 ```
 
 ### 5) Environment and Config
 
-- Config sources: `config.yaml` (YAML file) + `src/config.py` (loader with env var and CLI override support). Priority: CLI args > env vars (`CAUSAL_RS_*`) > YAML > defaults.
-- Required env vars: None hard-required. `CAUSAL_RS_*` can override any YAML key. `NVIDIA_CUDA_PATH` auto-detected for GPU (see `src/gpu_utils.py`). No `.env` file or `.env.example` found.
-- Deployment/runtime constraints: Windows 10+ primary target; Linux/macOS secondary. GPU optional (auto-fallback to CPU in all paths). MIND-small or MIND-large dataset required in `data/raw/MIND-small/` or `data/raw/MIND-large/`. MIND-large (~10x data) requires 32GB+ RAM for full processing.
+- Config sources: `config.yaml`, env vars with prefix `CAUSAL_RS_`, CLI args `--config.key=value`, hardcoded defaults in `src/config.py`
+- Required env vars: `MIND_SMALL_TRAIN_URL`, `MIND_SMALL_DEV_URL`, `MIND_SMALL_TEST_URL`, `MIND_LARGE_TRAIN_URL`, `MIND_LARGE_DEV_URL`, `MIND_LARGE_TEST_URL` (all optional, for download) — `src/data_pipeline/io_utils.py:98-101,176-179`
+- Deployment/runtime constraints: Single-machine research project. No production deployment. Requires 4+ GiB VRAM for GPU acceleration. Windows SubprocVecEnv replaced with DummyVecEnv (`src/rl_agent/train_ppo.py:30-32`).
 
 ### 6) Evidence
 
-- `requirements.txt` — full dependency list
-- `src/config.py` — runtime constants and paths (YAML loader)
-- `config.yaml` — editable YAML config file
-- `src/gpu_utils.py` — GPU availability and batch-size config
+- `README.md`
+- `requirements.txt`
+- `config.yaml`
+- `src/config.py`
+- `src/gpu_utils.py`
+
+## Extended Sections (Optional)
+
+### Full dependency taxonomy
+
+- **Deep Learning/GPU**: torch, cupy (optional), cuML (optional), sentence-transformers
+- **Data**: pandas, numpy, scipy, scikit-learn, pyarrow, fastparquet
+- **Causal Inference**: dowhy, networkx
+- **RL**: stable-baselines3, gymnasium
+- **NLP**: nltk (VADER sentiment), sentence-transformers
+- **Config/IO**: pyyaml, tqdm, pickle, urllib, zipfile
+- **Visualization**: matplotlib, tensorboard
+- **Dev**: pytest, pytest-cov, black

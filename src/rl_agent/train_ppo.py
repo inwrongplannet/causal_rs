@@ -53,6 +53,7 @@ def train_ppo(
     tensorboard_log="./tb_logs/",
     checkpoint_dir="./checkpoints/",
     verbose=1,
+    model_name=None,
 ):
     """Train a PPO agent for news recommendation with causal diversity.
 
@@ -118,7 +119,10 @@ def train_ppo(
 
     model.learn(total_timesteps=total_timesteps, progress_bar=True)
 
-    save_path = str(checkpoint_path / f"ppo_causal_rs_w{int(w*10):02d}")
+    if model_name:
+        save_path = str(checkpoint_path / model_name)
+    else:
+        save_path = str(checkpoint_path / f"ppo_causal_rs_w{int(w*10):02d}")
     model.save(save_path)
     vec_env.close()
 

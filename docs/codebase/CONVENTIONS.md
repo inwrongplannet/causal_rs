@@ -6,48 +6,47 @@
 
 | Item | Rule | Example | Evidence |
 |------|------|---------|----------|
-| Files | `snake_case.py` | `gcm_fit.py`, `precompute_cdi.py`, `scm_builder.py` | All files in `src/` |
-| Functions/methods | `snake_case` | `build_causal_graph()`, `precompute_cdi_cache()`, `train_ppo()` | All `.py` files in `src/` |
-| Types/interfaces | Python has no explicit type aliases; functions use type hints (PEP 484) for list/dict/optional params | `def fit_gcm(df_train: pd.DataFrame, pca_columns: list, entity_pca_columns: list = None) -> gcm.StructuralCausalModel:` | `src/counterfactual/gcm_fit.py`, most `src/` functions |
-| Constants/env vars | `UPPER_SNAKE_CASE` in `src/config.py` | `GPU_DEVICE`, `GPU_BATCH_SIZE`, `PCA_COMPONENTS`, `NEG_RATIO` | `src/config.py` |
+| Files | snake_case | `scm_builder.py`, `gcm_fit.py`, `train_ppo.py` | Any file in `src/` |
+| Functions/methods | snake_case | `build_scm_dataframe()`, `precompute_cdi_cache()`, `sample_negative_items()` | `src/data_pipeline/scm_builder.py:28`, `src/counterfactual/precompute_cdi.py:14`, `src/data_pipeline/features.py:95` |
+| Classes | PascalCase | `NewsRecommendEnv`, `TestSampleNegativeItems` | `src/rl_agent/environment.py:87`, `tests/test_features.py:13` |
+| Constants/env vars | UPPER_CASE | `DATA_DIR`, `SEED`, `GPU_BATCH_SIZE`, `CAUSAL_RS_*` | `src/config.py:181-207`, `src/data_pipeline/io_utils.py:98-101` |
+| Private methods/fields | `_` prefix | `_obs()`, `_min_max_cdi()`, `_to_array()`, `_cp`, `_DEFAULTS` | `src/rl_agent/environment.py:135,181`, `src/gpu_utils.py:49,60`, `src/config.py:31` |
+| Test classes | `Test` prefix | `TestSampleNegativeItems`, `TestNDCG` | All files in `tests/` |
+| Test methods | snake_case | `test_basic_sampling()`, `test_saves_and_loads()` | All test files |
 
 ### 2) Formatting and Linting
 
-- **Formatter**: `black` (version 26.1.0) — declared in `requirements.txt` but not currently installed in `.venv`; no config file found in project root
-- **Linter**: No linter config found (no `.flake8`, `pyproject.toml`, `.pylintrc`, or `ruff` config)
-- **Most relevant enforced rules**: Black defaults (line length 88, consistent quotes, trailing commas). No custom rules found.
-- **Run commands**:
-  ```bash
-  .venv\Scripts\python -m black src/ tests/
-  .venv\Scripts\python -m pytest tests/ -v
-  ```
+- Formatter: black 26.1.0 (installed in `requirements.txt`, no config file found)
+- Linter: None configured (no `.eslintrc`, `.flake8`, `pyproject.toml` linting config detected)
+- Most relevant enforced rules: None — no linting or formatting CI check
+- Run commands: None documented
 
 ### 3) Import and Module Conventions
 
-- **Import grouping/order**: Standard Python (stdlib → third-party → local). No explicit grouping rules or isort config found.
-- **Alias vs relative import policy**: All internal imports use **absolute** package imports from `src`. No relative imports (no `from .foo import bar`).
-- **Public exports/barrel policy**: No `__all__` declarations found. Each `__init__.py` is empty.
-- **Path aliasing**: None. No `sys.path` manipulation in production code. Only `tests/conftest.py` inserts the project root into `sys.path`.
+- Import grouping/order: Standard library → third-party → local `src` imports (observed in all source files)
+- Alias vs relative import policy: Absolute imports only, using `src.` prefix (e.g., `from src.data_pipeline.parsers import parse_history`). No relative imports observed.
+- Public exports/barrel policy: No `__all__` definitions found. Each `__init__.py` is empty.
 
 ### 4) Error and Logging Conventions
 
-- **Error strategy by layer**:
-  - Data pipeline: `AssertionError` for quality checks. Warnings for partial failures (embedding fallback, parse errors).
-  - Causal model: DoWhy exceptions wrapped in `try/except` in refutations to avoid one-failure-blocks-all.
-  - Counterfactual: `log.warning` and `continue` on individual (user, item) CDI failures.
-  - RL agent: Uses SB3's internal PPO error handling; no custom exception wrappers.
-- **Logging style**: Python `logging.getLogger(__name__)` at module level. Informational messages about pipeline progress, warnings about fallback/partial failures. No structured logging (no JSON log format).
-- **Sensitive-data redaction rules**: None found. The project processes public MIND dataset with no PII handling.
+- Error strategy by layer:
+  - Data pipeline: Assertions and explicit raises (`raise ValueError`, `raise AssertionError`, `raise RuntimeError`)
+  - Causal model: Exceptions caught and printed inline in notebook cells
+  - Counterfactual: `log.warning()` on individual failures, continues processing
+  - RL agent: GPU fallback catches exceptions and logs via `logger.warning()`
+- Logging style: Module-level `logger = logging.getLogger(__name__)` pattern. Used with structured messages indicating operation, context, and error reason.
+- Sensitive-data redaction rules: No secrets handling; no redaction logic found.
 
 ### 5) Testing Conventions
 
-- **Test file naming/location rule**: All tests in `tests/` directory, named `test_<module>.py` matching the source module name. E.g., `test_counterfactual.py` tests `src/counterfactual/`.
-- **Mocking strategy norm**: No mocking framework used. Tests construct small DataFrames or NetworkX graphs with hardcoded values and assert on structure/dimensions. No external API mocking (because there are no external API calls in production code).
-- **Coverage expectation**: No coverage tool configured. No `.coveragerc` or `[tool.coverage]` section found.
+- Test file naming/location rule: `tests/test_<module_name>.py` (separate `tests/` directory, not co-located)
+- Mocking strategy norm: Minimal mocking. Dependencies injected via function parameters or monkeypatch for import failures. No mock framework (unittest.mock) usage.
+- Coverage expectation: No coverage threshold enforced. `pytest-cov` optional.
 
 ### 6) Evidence
 
-- `src/counterfactual/gcm_fit.py` — representative function with type hints, logging, docstrings
-- `src/data_pipeline/nlp_utils.py` — snake_case naming, try/except fallback at function level
-- `src/config.py` — UPPER_SNAKE_CASE constants
-- `tests/test_counterfactual.py` — representative test file with class-based test organization
+- `src/data_pipeline/parsers.py` (snake_case functions, clear error handling)
+- `src/gpu_utils.py` (logging pattern, exception handling, `_` private helpers)
+- `tests/test_features.py` (test class/method naming)
+- `README.md` (test commands, lines 172-175)
+- Scan output (no linting config detected, line 290)

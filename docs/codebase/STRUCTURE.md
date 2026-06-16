@@ -6,42 +6,64 @@
 
 | Path | Purpose | Evidence |
 |------|---------|----------|
-| `src/` | Main application source code (25 Python files across 5 packages) | `src/counterfactual/`, `src/data_pipeline/`, `src/rl_agent/`, etc. |
-| `notebooks/` | Pipeline execution entry points (10 Jupyter notebooks, phases 1–5 for MIND-small and MIND-large) | `phase_1_data_pipeline_mind_small.ipynb` through `phase_5_evaluation_mind_large.ipynb` |
-| `tests/` | pytest test suite (12 test files + conftest) | `tests/test_counterfactual.py`, `tests/test_environment.py`, etc. |
-| `data/` | Data artifacts (raw MIND, interim embeddings, processed SCM data, split parquet parts) | `data/raw/MIND-small/`, `data/interim/`, `data/scm_parts/` |
-| `artifacts/` | Trained models and cache (GCM model pickle, CDI cache, PPO policy checkpoint) | `artifacts/gcm_model.pkl`, `artifacts/cdi_cache.pkl`, `artifacts/checkpoints/` |
-| `docs/` | Documentation | `docs/RESEARCH_LOG.md`, `docs/resources/` (CausalRS reference docs), `docs/codebase/` |
-| `config.yaml` | Editable configuration file (loaded by `src/config.py`) | `config.yaml` |
-| `scripts/` | Empty — standalone runner scripts were moved into notebooks | `scripts/` (empty) |
+| `src/` | Python package (5 subpackages, 25 files) | `README.md:65-72`, scan output lines 155-182 |
+| `src/data_pipeline/` | MIND TSV I/O, parsing, feature engineering, SCM builder, streaming | `src/data_pipeline/__init__.py` (lines 169-178) |
+| `src/causal_model/` | DoWhy causal inference: model creation, graph GML, CDI batch, refutation | `src/causal_model/__init__.py` (lines 157-161) |
+| `src/counterfactual/` | GCM graph building, fitting, counterfactual queries, CDI precomputation | `src/counterfactual/__init__.py` (lines 164-167) |
+| `src/rl_agent/` | Gymnasium environment, PPO training | `src/rl_agent/__init__.py` (lines 179-180) |
+| `src/evaluation/` | Metrics (NDCG, Precision, ILD), significance tests | `src/evaluation/__init__.py` (lines 178-179) |
+| `notebooks/` | 10 Jupyter notebooks across 5 pipeline phases (MIND-small + MIND-large) | Scan output lines 134-147 |
+| `tests/` | pytest test suite (12 test files) | Scan output lines 186-198 |
+| `data/` | Raw MIND-small/MIND-large, interim embeddings, processed reports, SCM parquet | Scan output lines 39-117 |
+| `artifacts/` | Trained GCM pickle, CDI cache pickle, PPO checkpoints, TensorBoard logs | Scan output lines 16-37 |
+| `scripts/` | Standalone scripts: training phases, GCM refit, evaluation | Scan output lines 151-153 |
+| `config.yaml` | Project configuration (dataset, seed, dims, GPU) | `config.yaml` |
+| `docs/` | Research log, codebase documentation, CausalRS reference materials | `docs/` (scan lines 118-133) |
 
 ### 2) Entry Points
 
-- **Main runtime entry**: There is no single CLI entry point. The project is executed via Jupyter notebooks (`notebooks/phase_*.ipynb`), each corresponding to one pipeline phase.
-- **Secondary entry points**: `pytest tests/ -v` runs the test suite. Individual Python modules can be imported directly (`from src.counterfactual.gcm_fit import fit_gcm`).
-- **How entry is selected**: The user runs notebooks sequentially: Phase 1 (data pipeline) → Phase 2 (causal modeling) → Phase 3 (counterfactual GCM + CDI) → Phase 4 (PPO training) → Phase 5 (evaluation).
+- Main runtime entry: Jupyter notebooks in `notebooks/` (5 phases, sequentially executed)
+- Secondary entry points (scripts): `scripts/run_phase4_5.py`, `scripts/run_phase4_large.py`, `scripts/refit_full_gcm_and_cdi.py`, `scripts/eval_only.py`
+- How entry is selected: Phase notebooks are run sequentially via `jupyter nbconvert --execute`. Scripts provide CLI alternatives for headless execution (e.g., `python scripts/refit_full_gcm_and_cdi.py --large`).
 
 ### 3) Module Boundaries
 
 | Boundary | What belongs here | What must not be here |
 |----------|-------------------|------------------------|
-| `src/data_pipeline/` | MIND dataset I/O, parsing, feature engineering, embedding, SCM DataFrame builder, streaming | Causal inference, RL training, evaluation logic |
-| `src/causal_model/` | DoWhy causal graph GML, model/estimand/estimate wrappers, CDI batch, refutations | Data loading, counterfactual queries, RL environment |
-| `src/counterfactual/` | GCM causal graph (NetworkX), SCM fitting, counterfactual query, CDI precomputation | Data pipeline logic, DoWhy refutations, RL agent |
-| `src/rl_agent/` | Gymnasium environment (`NewsRecommendEnv`), PPO training via stable-baselines3 | Causal inference, evaluation metrics, data pipeline |
-| `src/evaluation/` | NDCG, Precision, ILD, homogeneity, replay evaluation, significance testing | RL training loops, causal graph construction |
-| `src/config.py` | Path constants and pipeline configuration (embedding dims, PCA components, GPU settings) | Business logic, data transformations |
-| `src/gpu_utils.py` | GPU-accelerated array ops with cupy/numpy fallback | Any domain-specific logic |
+| `data_pipeline` | MIND I/O, TSV parsing, feature extraction, SCM DataFrame building, streaming | Causal inference logic, RL training, evaluation metrics |
+| `causal_model` | DoWhy CausalModel creation, ATE estimation, refutation tests | Data loading/parsing, GCM fitting, RL env |
+| `counterfactual` | NetworkX DAG construction, GCM fitting, counterfactual queries, CDI caching | Data pipeline, PPO training, evaluation |
+| `rl_agent` | Gymnasium env, PPO model definition and training | Causal inference, evaluation metrics |
+| `evaluation` | NDCG/Precision/ILD, significance tests, replay evaluation | Training logic, data pipeline, causal modeling |
 
 ### 4) Naming and Organization Rules
 
-- **File naming pattern**: `snake_case.py` — e.g., `gcm_fit.py`, `precompute_cdi.py`, `scm_builder.py`, `nlp_utils.py`
-- **Directory organization pattern**: **Layer-based** — split by pipeline stage (data_pipeline → causal_model → counterfactual → rl_agent → evaluation), not by feature
-- **Import aliasing or path conventions**: All imports from `src.*` using absolute package imports (e.g., `from src.counterfactual.queries import predict_diversity_counterfactual`). No relative imports. `tests/conftest.py` inserts project root into `sys.path` so test files can `import src.*`.
+- File naming pattern: snake_case (e.g., `scm_builder.py`, `gcm_fit.py`, `train_ppo.py`)
+- Directory organization pattern: By domain/function (causal_model, data_pipeline, rl_agent, evaluation, counterfactual)
+- Import aliasing or path conventions: Absolute imports from `src` package (e.g., `from src.config import SEED`, `from src.data_pipeline.nlp_utils import l2_normalize`)
+- Test file naming: `test_<module>.py` (e.g., `test_features.py`, `test_scm_builder.py`)
 
 ### 5) Evidence
 
-- `src/` directory listing (25 Python files, 5 subpackages)
-- `notebooks/` listing (5 source notebooks)
-- `tests/` listing (12 test files)
-- `src/config.py` for path constants
+- Scan output (directory tree, lines 2-199)
+- `README.md` (structure section, lines 62-78)
+- Module `__init__.py` files in each subpackage
+- Import patterns across source files
+
+## Extended Sections (Optional)
+
+### Subdirectory deep map
+
+- `src/data_pipeline/`:
+  - `io_utils.py` — File download, zip extraction, TSV loading, parquet save, entity vec loading
+  - `parsers.py` — History/impressions/entity string parsing
+  - `embedder.py` — Title encoder (sentence-transformers with HashingVectorizer fallback)
+  - `nlp_utils.py` — L2 normalize, cosine diversity, hash embedding, sentiment, batch GPU wrappers
+  - `features.py` — News feature computation, session user features, negative sampling
+  - `scm_builder.py` — SCM DataFrame construction, PCA reduction, split, quality checks
+  - `streaming.py` — Chunked behavior processing, hash-based split
+
+- `src/counterfactual/`:
+  - `gcm_fit.py` — Causal DAG builder, GCM fitting
+  - `queries.py` — Counterfactual diversity prediction
+  - `precompute_cdi.py` — Batch CDI cache precomputation

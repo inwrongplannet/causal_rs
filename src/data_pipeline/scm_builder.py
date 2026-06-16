@@ -15,14 +15,14 @@ def _try_import_pca():
     try:
         from cuml import PCA as GpuPCA
         logger.info("Using cuML PCA (GPU-accelerated)")
-        return GpuPCA
+        return GpuPCA, None
     except ImportError:
-        from sklearn.decomposition import PCA as CpuPCA
+        from sklearn.decomposition import PCA, IncrementalPCA
         logger.info("cuML not available, using sklearn PCA (CPU)")
-        return CpuPCA
+        return PCA, IncrementalPCA
 
 
-PCA = _try_import_pca()
+PCA, IncrementalPCA = _try_import_pca()
 
 
 def build_scm_dataframe(
@@ -132,7 +132,7 @@ def build_scm_dataframe(
 
 
 def reduce_embedding_columns(
-    scm_df: pd.DataFrame, n_components: int, seed: int
+    scm_df: pd.DataFrame, n_components: int, seed: int, chunk_size: int = 100000
 ) -> Tuple[pd.DataFrame, Dict[str, Dict[str, float]]]:
     reduced_df = scm_df.copy()
     pca_report: Dict[str, Dict[str, float]] = {}
@@ -143,24 +143,74 @@ def reduce_embedding_columns(
     ]
 
     for source_col, prefix in specs:
-        matrix_list = [
-            np.asarray(row, dtype=np.float32)
-            for row in reduced_df[source_col].to_numpy()
-        ]
-        matrix = np.vstack(matrix_list)
-        components = int(min(n_components, matrix.shape[0], matrix.shape[1]))
+        total = len(reduced_df)
+        dim = int(max(np.asarray(reduced_df[source_col].iloc[0], dtype=np.float32).size, 1))
+        components = int(min(n_components, total, dim))
+
         if components <= 0:
-            raise ValueError(f"Cannot run PCA on column {source_col}; matrix shape={matrix.shape}.")
-        pca = PCA(n_components=components, random_state=seed)
-        transformed = pca.fit_transform(matrix).astype(np.float32)
+            raise ValueError(f"Cannot run PCA on column {source_col}; rows={total}, dim={dim}.")
+
+        if total * dim * 4 < 512 * 1024 * 1024 and IncrementalPCA is not None:
+            # Small enough for in-memory PCA
+            matrix_list = [
+                np.asarray(row, dtype=np.float32)
+                for row in reduced_df[source_col].to_numpy()
+            ]
+            matrix = np.vstack(matrix_list)
+            pca = PCA(n_components=components, random_state=seed)
+            transformed = pca.fit_transform(matrix).astype(np.float32)
+        elif IncrementalPCA is not None:
+            # Large dataset — use IncrementalPCA in chunks
+            logger.info("Using IncrementalPCA for %s (%d rows x %d dims)", source_col, total, dim)
+            ipca = IncrementalPCA(n_components=components, batch_size=chunk_size)
+            for start in range(0, total, chunk_size):
+                end = min(start + chunk_size, total)
+                chunk_rows = [
+                    np.asarray(row, dtype=np.float32)
+                    for row in reduced_df[source_col].iloc[start:end].to_numpy()
+                ]
+                chunk_matrix = np.vstack(chunk_rows)
+                ipca.partial_fit(chunk_matrix)
+                logger.info("  IncrementalPCA partial_fit %d / %d", end, total)
+            # Transform in chunks
+            transformed_list = []
+            for start in range(0, total, chunk_size):
+                end = min(start + chunk_size, total)
+                chunk_rows = [
+                    np.asarray(row, dtype=np.float32)
+                    for row in reduced_df[source_col].iloc[start:end].to_numpy()
+                ]
+                chunk_matrix = np.vstack(chunk_rows)
+                transformed_list.append(ipca.transform(chunk_matrix).astype(np.float32))
+            transformed = np.vstack(transformed_list)
+            pca = ipca
+        else:
+            # No IncrementalPCA available — try in-memory with warning
+            logger.warning("IncrementalPCA unavailable, attempting in-memory PCA for %s", source_col)
+            matrix_list = [
+                np.asarray(row, dtype=np.float32)
+                for row in reduced_df[source_col].to_numpy()
+            ]
+            matrix = np.vstack(matrix_list)
+            pca = PCA(n_components=components, random_state=seed)
+            transformed = pca.fit_transform(matrix).astype(np.float32)
+
         for idx in range(components):
             reduced_df[f"{prefix}_{idx}"] = transformed[:, idx]
         for idx in range(components, n_components):
             reduced_df[f"{prefix}_{idx}"] = 0.0
-        pca_report[prefix] = {
-            "n_components": components,
-            "explained_variance_ratio_sum": float(np.sum(pca.explained_variance_ratio_)),
-        }
+
+        explained_var = getattr(pca, "explained_variance_ratio_", None)
+        if explained_var is not None:
+            pca_report[prefix] = {
+                "n_components": components,
+                "explained_variance_ratio_sum": float(np.sum(explained_var)),
+            }
+        else:
+            pca_report[prefix] = {
+                "n_components": components,
+                "explained_variance_ratio_sum": None,
+            }
     return reduced_df, pca_report
 
 

@@ -116,6 +116,16 @@ class NewsRecommendEnv(gym.Env):
         )
         self.action_space = gym.spaces.Discrete(K)
 
+    def _subsample_pool(self, candidates, clicks):
+        """Subsample candidate pool to K items, shuffling for variety."""
+        n = len(candidates)
+        if n <= self.K:
+            idxs = list(range(n))
+            self.np_random.shuffle(idxs)
+        else:
+            idxs = self.np_random.choice(n, size=self.K, replace=False).tolist()
+        return [candidates[i] for i in idxs], [clicks[i] for i in idxs]
+
     def reset(self, seed=None):
         """Start a new episode by sampling a random session.
 
@@ -129,20 +139,17 @@ class NewsRecommendEnv(gym.Env):
         self.session = self.np_random.choice(self.sessions)
         self.step_idx = 0
         self.history_emb = self.session.initial_history_emb.copy()
+        self._pool_candidates, self._pool_clicks = self._subsample_pool(
+            self.session.candidates[0], self.session.clicks[0]
+        )
         self.D = compute_session_diversity(self.history_emb, self.session)
         return self._obs(), {}
 
-    def _min_max_cdi(self, step_idx: int) -> tuple[float, float]:
-        """Min-max normalise CDI scores across the step's candidate pool.
-
-        Returns:
-            Tuple of (cdi_min, cdi_range) for this step's candidates.
-            Both are floats; range is 0 if all CDI values are identical.
-        """
-        candidates = self.session.candidates[step_idx]
+    def _min_max_cdi(self) -> tuple[float, float]:
+        """Min-max normalise CDI scores across the step's candidate pool."""
         cdi_vals = [
             self.cdi_cache.get((self.session.user_id, c.item_id), 0.0)
-            for c in candidates
+            for c in self._pool_candidates
         ]
         cdi_min = min(cdi_vals)
         cdi_max = max(cdi_vals)
@@ -157,12 +164,13 @@ class NewsRecommendEnv(gym.Env):
         Returns:
             Tuple of (next_obs, reward, terminated, truncated, info).
         """
-        candidate = self.session.candidates[self.step_idx][action]
-        r_click = self.session.clicks[self.step_idx][action]
+        action = min(action, len(self._pool_candidates) - 1)
+        candidate = self._pool_candidates[action]
+        r_click = self._pool_clicks[action]
         raw_cdi = self.cdi_cache.get(
             (self.session.user_id, candidate.item_id), 0.0
         )
-        cdi_min, cdi_range = self._min_max_cdi(self.step_idx)
+        cdi_min, cdi_range = self._min_max_cdi()
         cdi = (raw_cdi - cdi_min) / cdi_range if cdi_range > 0 else 0.5
         reward = self.w * r_click + (1 - self.w) * cdi
 

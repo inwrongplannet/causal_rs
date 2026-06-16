@@ -43,6 +43,12 @@ parser = argparse.ArgumentParser(description="Refit GCM and compute full CDI cac
 parser.add_argument("--large", action="store_true", help="Use MIND-large settings")
 parser.add_argument("--gcm-sample", type=int, default=0,
                     help="Sample N rows for GCM fit (0 = use all)")
+parser.add_argument("--skip-gcm", action="store_true",
+                    help="Skip GCM fitting, load existing model from artifacts")
+parser.add_argument("--cdi-sessions", type=int, default=5000,
+                    help="Max sessions for CDI computation (default 5000)")
+parser.add_argument("--cdi-checkpoint-interval", type=int, default=500,
+                    help="Save CDI cache checkpoint every N sessions (default 500)")
 args = parser.parse_args()
 
 # ---------------------------------------------------------------------------
@@ -67,26 +73,35 @@ title_cols = [c for c in df.columns if c.startswith("I_title_pca_")]
 print(f"  U_pca: {len(pca_cols)}, I_entity_pca: {len(entity_cols)}, I_title_pca: {len(title_cols)}")
 
 # ---------------------------------------------------------------------------
-# 2. Fit GCM (sampled for large datasets)
+# 2. Fit GCM (or load existing)
 # ---------------------------------------------------------------------------
-print("\n" + "=" * 60)
-print("STEP 2: Fit GCM")
-print("=" * 60)
-t0 = time.time()
-gcm_sample = args.gcm_sample
-if gcm_sample == 0:
-    # Auto: use all rows for small, 500K sample for large
-    gcm_sample = len(df) if not is_large else 500_000
-gcm_data = df.sample(n=min(gcm_sample, len(df)), random_state=42) if gcm_sample < len(df) else df
-gcm_model = fit_gcm(gcm_data, pca_cols, entity_cols, title_cols)
-t_gcm = time.time() - t0
-print(f"  GCM fitted on {len(gcm_data)} rows in {t_gcm:.1f}s")
-
 gcm_path = ARTIFACTS / "gcm_model_full.pkl"
-gcm_path.parent.mkdir(parents=True, exist_ok=True)
-with open(gcm_path, "wb") as f:
-    pickle.dump(gcm_model, f)
-print(f"  GCM saved to {gcm_path}")
+if args.skip_gcm and gcm_path.exists():
+    print("\n" + "=" * 60)
+    print("STEP 2: Load existing GCM (--skip-gcm)")
+    print("=" * 60)
+    t0 = time.time()
+    with open(gcm_path, "rb") as f:
+        gcm_model = pickle.load(f)
+    print(f"  GCM loaded from {gcm_path} in {time.time() - t0:.1f}s")
+    t_gcm = 0
+else:
+    print("\n" + "=" * 60)
+    print("STEP 2: Fit GCM")
+    print("=" * 60)
+    t0 = time.time()
+    gcm_sample = args.gcm_sample
+    if gcm_sample == 0:
+        # Auto: use all rows for small, 500K sample for large
+        gcm_sample = len(df) if not is_large else 500_000
+    gcm_data = df.sample(n=min(gcm_sample, len(df)), random_state=42) if gcm_sample < len(df) else df
+    gcm_model = fit_gcm(gcm_data, pca_cols, entity_cols, title_cols)
+    t_gcm = time.time() - t0
+    print(f"  GCM fitted on {len(gcm_data)} rows in {t_gcm:.1f}s")
+    gcm_path.parent.mkdir(parents=True, exist_ok=True)
+    with open(gcm_path, "wb") as f:
+        pickle.dump(gcm_model, f)
+    print(f"  GCM saved to {gcm_path}")
 
 # ---------------------------------------------------------------------------
 # 3. Build sessions from ALL impressions
@@ -114,7 +129,20 @@ categories = sorted(df["I_category"].unique().tolist())
 print(f"  News lookup: {len(news_df)} items, categories: {len(categories)}")
 
 # Build session objects
-n_sessions_limit = None if not is_large else 10000  # cap for MIND-large memory
+n_sessions_limit = args.cdi_sessions  # use CLI arg
+session_checkpoint_interval = args.cdi_checkpoint_interval
+
+# Try loading existing CDI cache
+cdi_path = ARTIFACTS / "cdi_cache_full.pkl"
+cdi_cache = {}
+if cdi_path.exists():
+    try:
+        with open(cdi_path, "rb") as f:
+            cdi_cache = pickle.load(f)
+        print(f"  Loaded existing CDI cache: {len(cdi_cache)} entries")
+    except Exception as e:
+        print(f"  Could not load CDI cache: {e}")
+        cdi_cache = {}
 for imp_id, group in df.groupby("impression_id", sort=False):
     if n_sessions_limit and len(sessions) >= n_sessions_limit:
         break
@@ -162,7 +190,7 @@ t0 = time.time()
 n_skipped = 0
 n_total = sum(len(s.candidate_pool) for s in sessions)
 
-for session in tqdm(sessions, desc="CDI"):
+for idx, session in enumerate(tqdm(sessions, desc="CDI")):
     if session.user_id not in user_index:
         n_skipped += 1
         continue
@@ -199,6 +227,17 @@ for session in tqdm(sessions, desc="CDI"):
         evals = mech.evaluate(tiled, noise)
         cdi_cache[(session.user_id, item_id)] = float(np.mean(evals))
 
+    # Checkpoint save
+    if (idx + 1) % session_checkpoint_interval == 0:
+        with open(cdi_path, "wb") as f:
+            pickle.dump(cdi_cache, f)
+        elapsed = time.time() - t0
+        rate = (idx + 1) / elapsed
+        remaining = (len(sessions) - idx - 1) / rate
+        print(f"\n  [Checkpoint] {idx+1}/{len(sessions)} sessions, "
+              f"{len(cdi_cache)} CDI entries, "
+              f"{elapsed/60:.1f}min elapsed, ~{remaining/60:.1f}min remaining")
+
 t_cdi = time.time() - t0
 print(f"\n  CDI computed: {len(cdi_cache)} entries in {t_cdi:.1f}s ({t_cdi/max(1,len(cdi_cache)):.3f}s/pair)")
 print(f"  Skipped sessions (user not in training data): {n_skipped}")
@@ -214,7 +253,9 @@ print(f"  CDI cache saved to {cdi_path}")
 print("\n" + "=" * 60)
 print("SUMMARY")
 print("=" * 60)
-print(f"  GCM model:  {gcm_path} (fitted on {len(df)} rows in {t_gcm:.1f}s)")
+print(f"  GCM model:  {gcm_path}")
+if t_gcm > 0:
+    print(f"  GCM fitting: {len(gcm_data)} rows in {t_gcm:.1f}s")
 print(f"  CDI cache:  {cdi_path} ({len(cdi_cache)} entries in {t_cdi:.1f}s)")
 print(f"  Sessions:   {len(sessions)}")
 print(f"  Coverage:   {len(cdi_cache)} / {n_total} possible pairs")
