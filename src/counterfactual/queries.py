@@ -35,6 +35,7 @@ def predict_diversity_counterfactual(
     new_item_entity_pca: dict = None,
     new_item_title_pca: dict = None,
     categories: list = None,
+    n_draws: int = 200,
 ) -> float:
     """Predict counterfactual Y_diversity under intervention.
 
@@ -63,6 +64,8 @@ def predict_diversity_counterfactual(
         new_item_title_pca: Optional dict of {col_name: value} for the
                             candidate item's I_title_pca_* features.
         categories: Optional list of known categories for consistent encoding.
+        n_draws: Number of noise draws for the counterfactual estimate.
+                 Higher values yield more stable estimates.  Default 200.
 
     Returns:
         Expected Y_diversity under the intervention (float in [0, 1]).
@@ -90,7 +93,6 @@ def predict_diversity_counterfactual(
     parent_values = parent_df.to_numpy()
     mech = scm.causal_mechanism("Y_diversity")
 
-    n_draws = 50
     noise = mech.draw_noise_samples(num_samples=n_draws)
     tiled = np.repeat(parent_values, n_draws, axis=0)
     evals = mech.evaluate(tiled, noise)

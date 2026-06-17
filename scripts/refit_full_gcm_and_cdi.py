@@ -26,7 +26,7 @@ ROOT = Path(__file__).resolve().parent.parent
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from src.counterfactual.gcm_fit import fit_gcm
+from src.counterfactual.gcm_fit import fit_gcm, fit_gcm_item_sensitive
 from src.counterfactual.precompute_cdi import precompute_cdi_cache
 
 logging.basicConfig(
@@ -95,9 +95,9 @@ else:
         # Auto: use all rows for small, 500K sample for large
         gcm_sample = len(df) if not is_large else 500_000
     gcm_data = df.sample(n=min(gcm_sample, len(df)), random_state=42) if gcm_sample < len(df) else df
-    gcm_model = fit_gcm(gcm_data, pca_cols, entity_cols, title_cols)
+    gcm_model, n_draws = fit_gcm_item_sensitive(gcm_data, pca_cols, entity_cols, title_cols)
     t_gcm = time.time() - t0
-    print(f"  GCM fitted on {len(gcm_data)} rows in {t_gcm:.1f}s")
+    print(f"  GCM fitted on {len(gcm_data)} rows in {t_gcm:.1f}s (n_draws={n_draws})")
     gcm_path.parent.mkdir(parents=True, exist_ok=True)
     with open(gcm_path, "wb") as f:
         pickle.dump(gcm_model, f)
@@ -163,89 +163,27 @@ print(f"  Built {len(sessions)} sessions in {time.time() - t0:.1f}s")
 # ---------------------------------------------------------------------------
 print("\n" + "=" * 60)
 print("STEP 4: Compute CDI for ALL sessions × ALL candidates")
-print(f"  Sessions: {len(sessions)}, total candidate pairs: {sum(len(s.candidate_pool) for s in sessions)}")
+print(f"  Sessions: {len(sessions)} (limited to {args.cdi_sessions}), "
+      f"total candidate pairs: ~{sum(len(s.candidate_pool) for s in sessions[:max(1,args.cdi_sessions)])}")
 print("=" * 60)
 
-# Optimisation: index df by user_id for O(1) lookup
-user_index = {}
-for uid, row in df.groupby("user_id").first().iterrows():
-    user_index[uid] = row
-# Also need category_to_int
-from src.counterfactual.precompute_cdi import category_to_int
-
-# Manual CDI computation with progress
-from tqdm import tqdm
-from dowhy.gcm.fitting_sampling import PARENTS_DURING_FIT
-from dowhy import gcm
-
-cdi_cache = {}
-parent_order = gcm_model.graph.nodes["Y_diversity"].get(
-    PARENTS_DURING_FIT,
-    sorted(gcm_model.graph.predecessors("Y_diversity")),
-)
-mech = gcm_model.causal_mechanism("Y_diversity")
-n_draws = 50
-
-t0 = time.time()
-n_skipped = 0
-n_total = sum(len(s.candidate_pool) for s in sessions)
-
-for idx, session in enumerate(tqdm(sessions, desc="CDI")):
-    if session.user_id not in user_index:
-        n_skipped += 1
-        continue
-    user_row = user_index[session.user_id]
-
-    # Get unique items in this session's pool (deduplication)
-    unique_items = list(set(session.candidate_pool))
-
-    for item_id in unique_items:
-        if (session.user_id, item_id) in cdi_cache:
-            continue
-        try:
-            item = news_df.loc[item_id]
-        except KeyError:
-            continue
-
-        # Build parent DataFrame just like predict_diversity_counterfactual
-        parent_df = pd.DataFrame([user_row], columns=parent_order)
-        parent_df["A"] = 1
-        parent_df["I_category"] = item["I_category"]
-        parent_df["I_sentiment"] = item["I_sentiment"]
-
-        # Override item PCA values with actual
-        for col in entity_cols_all:
-            if col in parent_df.columns:
-                parent_df[col] = item[col]
-        for col in title_cols_all:
-            if col in parent_df.columns:
-                parent_df[col] = item[col]
-
-        parent_values = parent_df.to_numpy()
-        noise = mech.draw_noise_samples(num_samples=n_draws)
-        tiled = np.repeat(parent_values, n_draws, axis=0)
-        evals = mech.evaluate(tiled, noise)
-        cdi_cache[(session.user_id, item_id)] = float(np.mean(evals))
-
-    # Checkpoint save
-    if (idx + 1) % session_checkpoint_interval == 0:
-        with open(cdi_path, "wb") as f:
-            pickle.dump(cdi_cache, f)
-        elapsed = time.time() - t0
-        rate = (idx + 1) / elapsed
-        remaining = (len(sessions) - idx - 1) / rate
-        print(f"\n  [Checkpoint] {idx+1}/{len(sessions)} sessions, "
-              f"{len(cdi_cache)} CDI entries, "
-              f"{elapsed/60:.1f}min elapsed, ~{remaining/60:.1f}min remaining")
-
-t_cdi = time.time() - t0
-print(f"\n  CDI computed: {len(cdi_cache)} entries in {t_cdi:.1f}s ({t_cdi/max(1,len(cdi_cache)):.3f}s/pair)")
-print(f"  Skipped sessions (user not in training data): {n_skipped}")
+from src.counterfactual.precompute_cdi import precompute_cdi_cache, category_to_int
 
 cdi_path = ARTIFACTS / "cdi_cache_full.pkl"
-with open(cdi_path, "wb") as f:
-    pickle.dump(cdi_cache, f)
-print(f"  CDI cache saved to {cdi_path}")
+
+t0 = time.time()
+cdi_cache = precompute_cdi_cache(
+    gcm_model,
+    sessions[:args.cdi_sessions],
+    news_df,
+    df,
+    categories=categories,
+    cache_path=cdi_path,
+    n_draws=200,
+)
+t_cdi = time.time() - t0
+
+print(f"\n  CDI computed: {len(cdi_cache)} entries in {t_cdi:.1f}s ({t_cdi/max(1,len(cdi_cache)):.3f}s/pair)")
 
 # ---------------------------------------------------------------------------
 # 5. Summary

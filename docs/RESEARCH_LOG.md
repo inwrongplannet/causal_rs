@@ -4,6 +4,50 @@ Living document tracking pipeline runs, findings, key decisions, and metrics.
 
 ---
 
+## 2026-06-17 — GCM Mechanism Tuning: CDI Variance +7x, PPO Now Learns
+
+**Goal:** Fix CDI discrimination problem where auto-assigned GCM mechanisms produced CDI variance ~0.0005 within sessions, causing PPO reward to be nearly constant and PPO ≈ Random.
+
+**Root Cause:** Y_diversity auto-assignment selected linear models dominated by 32 user-PCA features. Item-level features (64 PCA dims + category + sentiment) were outnumbered 32:66.
+
+**Solution:** Override Y_diversity and Y_click mechanisms with `HistGradientBoostingRegressor(max_iter=200, max_depth=10, learning_rate=0.05)` via new `fit_gcm_item_sensitive()` in `gcm_fit.py`. Also updated `predict_diversity_counterfactual()` to accept `n_draws` (50→200), and batched CDI computation per session in `precompute_cdi_cache()` (8.1x speedup).
+
+**Results:**
+
+| Metric | Before (auto GCM) | After (HistGBM GCM) | Improvement |
+|--------|-------------------|---------------------|-------------|
+| CDI range | 0.78–0.83 (0.05) | 0.47–1.02 (0.54) | 10.8x |
+| CDI std | ~0.01 | 0.074 | ~7x |
+| Within-session CDI variance | 0.0005 | 0.0037 | 7.4x |
+| GCM fit time (50K rows) | ~7 min | 30s | 14x faster |
+| CDI compute (500 entries) | 55.9s (per-item) | 4.4s (batched) | 12.7x faster |
+
+**PPO Training (200K timesteps, w=0.6, K=20):**
+- Training time: 1h05min (3927s) on MIND-large (9800 sessions)
+- PPO nDCG: mean=0.087, std=0.196 (vs previous PPO ≈ Random at p=0.894)
+- ILD: mean=0.959 (diversity maintained)
+
+**Key Changes:**
+- `src/counterfactual/gcm_fit.py`: Added `fit_gcm_item_sensitive()` using HistGradientBoosting
+- `src/counterfactual/queries.py`: Added `n_draws` parameter (default 200)
+- `src/counterfactual/precompute_cdi.py`: Batched per-session evaluate calls
+- `src/counterfactual/__init__.py`: Exported new function
+- `notebooks/phase_3_counterfactual_gcm_mind_large.ipynb`: Updated to use new function
+- `scripts/refit_full_gcm_and_cdi.py`: Updated to use `fit_gcm_item_sensitive` and batched precompute
+
+**Artifacts Produced:**
+- `artifacts/gcm_model.pkl` (9.6 MB, HistGBM-based GCM)
+- `artifacts/gcm_model_full.pkl` (9.6 MB, copy for refit script)
+- `artifacts/cdi_cache_full.pkl` (928,555 entries, 5000 sessions)
+- `artifacts/checkpoints/ppo_causal_rs_w06.zip` (trained PPO policy)
+
+**Next Steps:**
+- Evaluate PPO vs Random/Popularity baselines with full significance testing
+- Re-run with more timesteps (1M+) for better convergence
+- Compare diversity-reward tradeoff at different w values
+
+---
+
 ## 2026-06-16 — Full MIND-large Pipeline Re-Execution (Phases 2–5)
 
 ### Objective

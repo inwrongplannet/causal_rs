@@ -6,8 +6,8 @@
 
 | Area | Value | Evidence |
 |------|-------|----------|
-| Primary language | Python 3.14+ | `README.md:7`, Python 3.14.5 via `python --version` |
-| Runtime + version | CPython 3.14.5 | `python --version` |
+| Primary language | Python 3.13+ | `README.md:7`, Python 3.13.13 via `python --version` |
+| Runtime + version | CPython 3.13.13 | `python --version` |
 | Package manager | pip 25+ | `README.md:84-85`, `requirements.txt` |
 | Module/build system | Pure Python (no build step), Jupyter notebooks | No `setup.py`/`pyproject.toml`, notebooks in `notebooks/` |
 
