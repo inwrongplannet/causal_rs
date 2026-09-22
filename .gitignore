@@ -1,0 +1,37 @@
+# Phase 1 generated data artifacts
+/data/raw/
+/data/interim/
+/data/processed/
+/data/scm_parts/
+/data/*.parquet
+/data/**/*.parquet
+/data/*.pkl
+
+# Jupyter noise
+**/.ipynb_checkpoints/
+
+# Python cache
+**/__pycache__/
+**/*.pyc
+.pytest_cache/
+
+# Scan artifacts
+docs/codebase/.codebase-scan.txt
+
+# Local environments
+.venv/
+
+# Artifacts (models, caches, checkpoints, logs)
+/artifacts/
+
+# Temp scripts
+_check_*.py
+_update_*.py
+_extract_*.py
+
+# Executed notebook outputs
+notebooks/*_executed.ipynb
+
+# Installed tools
+python-*.exe
+*.zip
