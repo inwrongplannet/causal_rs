@@ -25,7 +25,8 @@ class TestInferSplitSource:
         assert _infer_split_source(p) == "unknown"
 
     def test_windows_path(self):
-        p = Path("C:\\data\\MIND-small\\train\\behaviors.tsv")
+        from pathlib import PureWindowsPath
+        p = PureWindowsPath("C:\\data\\MIND-small\\train\\behaviors.tsv")
         assert _infer_split_source(p) == "train"
 
 

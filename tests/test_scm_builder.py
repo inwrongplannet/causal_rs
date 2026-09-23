@@ -50,6 +50,7 @@ class TestReduceEmbeddingColumns:
             records.append({
                 "U_history_emb_full": rng.random(10).tolist(),
                 "I_entity_emb_full": rng.random(5).tolist(),
+                "I_title_emb_full": rng.random(5).tolist(),
             })
         return pd.DataFrame(records)
 
