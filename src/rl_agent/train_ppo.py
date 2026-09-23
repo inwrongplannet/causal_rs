@@ -53,6 +53,7 @@ def train_ppo(
     checkpoint_dir="./checkpoints/",
     verbose=1,
     model_name=None,
+    seed=None,
 ):
     """Train a PPO agent for news recommendation with causal diversity.
 
@@ -81,6 +82,11 @@ def train_ppo(
         tensorboard_log: TensorBoard log directory.
         checkpoint_dir: Directory to save model checkpoints.
         verbose: Verbosity level (0 = silent, 1 = info).
+        seed: RNG seed for reproducibility. When set, passed directly to
+            SB3's PPO constructor, which seeds the policy network
+            initialization, the environment's RNG (via `env.reset(seed=...)`
+            internally), and PyTorch/NumPy global RNGs used during training.
+            Default None (non-deterministic).
 
     Returns:
         Tuple of (trained PPO model, checkpoint save path).
@@ -114,6 +120,7 @@ def train_ppo(
         policy_kwargs={"net_arch": net_arch},
         verbose=verbose,
         tensorboard_log=tensorboard_log,
+        seed=seed,
     )
 
     model.learn(total_timesteps=total_timesteps, progress_bar=True)
@@ -121,7 +128,8 @@ def train_ppo(
     if model_name:
         save_path = str(checkpoint_path / model_name)
     else:
-        save_path = str(checkpoint_path / f"ppo_causal_rs_w{int(w*10):02d}")
+        seed_suffix = f"_seed{seed}" if seed is not None else ""
+        save_path = str(checkpoint_path / f"ppo_causal_rs_w{int(w*10):02d}{seed_suffix}")
     model.save(save_path)
     vec_env.close()
 
