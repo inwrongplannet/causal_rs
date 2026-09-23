@@ -1,11 +1,18 @@
 import logging
+from collections.abc import Sequence
 from datetime import datetime, timezone
-from typing import Dict, List, Sequence, Tuple
 
 import numpy as np
 import pandas as pd
 
-from src.config import DATASET, NEG_RATIO, PCA_COMPONENTS, SEED, SPLIT_RATIOS, TITLE_EMBED_DIM
+from src.config import (
+    DATASET,
+    NEG_RATIO,
+    PCA_COMPONENTS,
+    SEED,
+    SPLIT_RATIOS,
+    TITLE_EMBED_DIM,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -54,7 +61,7 @@ def build_scm_dataframe(
         session_features = session_lookup[impression_id]
         u_history_emb = np.asarray(session_features["U_history_emb_full"], dtype=np.float32)
 
-        shown_items: List[str] = []
+        shown_items: list[str] = []
         for item_id, clicked in row.parsed_impressions:
             item_features = news_lookup.get(item_id)
             if item_features is None:
@@ -133,9 +140,9 @@ def build_scm_dataframe(
 
 def reduce_embedding_columns(
     scm_df: pd.DataFrame, n_components: int, seed: int, chunk_size: int = 100000
-) -> Tuple[pd.DataFrame, Dict[str, Dict[str, float]]]:
+) -> tuple[pd.DataFrame, dict[str, dict[str, float]]]:
     reduced_df = scm_df.copy()
-    pca_report: Dict[str, Dict[str, float]] = {}
+    pca_report: dict[str, dict[str, float]] = {}
     specs = [
         ("U_history_emb_full", "U_pca"),
         ("I_entity_emb_full", "I_entity_pca"),
@@ -216,9 +223,9 @@ def reduce_embedding_columns(
 
 def split_by_impression_id(
     scm_df: pd.DataFrame,
-    split_ratios: Tuple[float, float, float],
+    split_ratios: tuple[float, float, float],
     seed: int,
-) -> Tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, Dict[str, int]]:
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, dict[str, int]]:
     train_ratio, val_ratio, test_ratio = split_ratios
     if not np.isclose(train_ratio + val_ratio + test_ratio, 1.0):
         raise ValueError("Split ratios must sum to 1.0")
@@ -257,7 +264,7 @@ def run_quality_checks(
     test_df: pd.DataFrame,
     required_cols: Sequence[str],
     neg_ratio: int,
-) -> Dict[str, object]:
+) -> dict[str, object]:
     combined = pd.concat([train_df, val_df, test_df], ignore_index=True)
     missing_columns = [col for col in required_cols if col not in combined.columns]
     critical_cols = [
@@ -317,12 +324,12 @@ def build_phase1_report(
     train_df: pd.DataFrame,
     val_df: pd.DataFrame,
     test_df: pd.DataFrame,
-    split_report: Dict[str, int],
-    quality_report: Dict[str, object],
-    pca_report: Dict[str, Dict[str, float]],
-    encoder_meta: Dict[str, str],
-    output_paths: Dict[str, str],
-) -> Dict[str, object]:
+    split_report: dict[str, int],
+    quality_report: dict[str, object],
+    pca_report: dict[str, dict[str, float]],
+    encoder_meta: dict[str, str],
+    output_paths: dict[str, str],
+) -> dict[str, object]:
     all_df = pd.concat([train_df, val_df, test_df], ignore_index=True)
     return {
         "generated_at_utc": datetime.now(timezone.utc).isoformat(),

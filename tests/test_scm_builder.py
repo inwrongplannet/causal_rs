@@ -1,10 +1,11 @@
 import numpy as np
 import pandas as pd
 import pytest
+
 from src.data_pipeline.scm_builder import (
-    split_by_impression_id,
     reduce_embedding_columns,
     run_quality_checks,
+    split_by_impression_id,
 )
 
 
@@ -55,19 +56,19 @@ class TestReduceEmbeddingColumns:
         return pd.DataFrame(records)
 
     def test_pca_columns_added(self, sample_df):
-        reduced, report = reduce_embedding_columns(sample_df, 5, 42)
-        assert f"U_pca_0" in reduced.columns
-        assert f"U_pca_4" in reduced.columns
+        reduced, _report = reduce_embedding_columns(sample_df, 5, 42)
+        assert "U_pca_0" in reduced.columns
+        assert "U_pca_4" in reduced.columns
         assert "I_entity_pca_0" in reduced.columns
 
     def test_pca_report(self, sample_df):
-        reduced, report = reduce_embedding_columns(sample_df, 5, 42)
+        _reduced, report = reduce_embedding_columns(sample_df, 5, 42)
         assert "U_pca" in report
         assert "I_entity_pca" in report
         assert 0 < report["U_pca"]["explained_variance_ratio_sum"] <= 1.0
 
     def test_n_components_greater_than_matrix(self, sample_df):
-        reduced, report = reduce_embedding_columns(sample_df, 100, 42)
+        reduced, _report = reduce_embedding_columns(sample_df, 100, 42)
         assert "U_pca_99" in reduced.columns
 
     def test_empty_dataframe(self):

@@ -1,9 +1,8 @@
+import sys
 from pathlib import Path
 
-import numpy as np
-import sys
 from stable_baselines3 import PPO
-from stable_baselines3.common.vec_env import SubprocVecEnv, DummyVecEnv
+from stable_baselines3.common.vec_env import DummyVecEnv, SubprocVecEnv
 
 from src.rl_agent.environment import NewsRecommendEnv
 
@@ -112,7 +111,7 @@ def train_ppo(
         clip_range=clip_range,
         ent_coef=ent_coef,
         learning_rate=learning_rate,
-        policy_kwargs=dict(net_arch=net_arch),
+        policy_kwargs={"net_arch": net_arch},
         verbose=verbose,
         tensorboard_log=tensorboard_log,
     )

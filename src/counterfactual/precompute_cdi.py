@@ -1,14 +1,12 @@
-import pickle
 import logging
+import pickle
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
-from tqdm import tqdm
 from dowhy import gcm
 from dowhy.gcm.fitting_sampling import PARENTS_DURING_FIT
-
-from src.counterfactual.queries import category_to_int
+from tqdm import tqdm
 
 log = logging.getLogger(__name__)
 
@@ -18,8 +16,8 @@ def precompute_cdi_cache(
     sessions: list,
     news_df: pd.DataFrame,
     df_train: pd.DataFrame,
-    categories: list = None,
-    cache_path: Path = None,
+    categories: list | None = None,
+    cache_path: Path | None = None,
     n_draws: int = 200,
 ) -> dict:
     """Precompute and cache CDI scores for all (user, candidate) pairs.
@@ -71,8 +69,7 @@ def precompute_cdi_cache(
             parent_row["I_category"] = item["I_category"]
             parent_row["I_sentiment"] = item["I_sentiment"]
             for col in parent_row.columns:
-                if col.startswith("I_entity_pca_") or col.startswith("I_title_pca_"):
-                    if col in item.index:
+                if col.startswith(("I_entity_pca_", "I_title_pca_")) and col in item.index:
                         parent_row[col] = item[col]
             parent_rows.append(parent_row.values[0])
             valid_item_ids.append(item_id)

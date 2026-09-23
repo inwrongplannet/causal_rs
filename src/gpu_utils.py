@@ -15,11 +15,10 @@ Typical usage::
 import logging
 import os
 from pathlib import Path
-from typing import Optional
 
 import numpy as np
 
-from src.config import GPU_BATCH_SIZE, GPU_DEVICE, GPU_ENABLED
+from src.config import GPU_BATCH_SIZE, GPU_ENABLED
 
 logger = logging.getLogger(__name__)
 
@@ -51,13 +50,14 @@ if _cuda_bin and "CUDA_PATH" not in os.environ:
     os.environ["CUDA_PATH"] = _cuda_bin
 
 import warnings
+
 warnings.filterwarnings("ignore", message="CUDA path could not be detected")
 
 
 # ---------------------------------------------------------------------------
 # Cupy availability probe  (lazy — first import triggers the check)
 # ---------------------------------------------------------------------------
-_HAS_CUPY: Optional[bool] = None
+_HAS_CUPY: bool | None = None
 _cp = None
 
 
@@ -70,7 +70,7 @@ def _probe_cupy() -> bool:
         _cp = cp
         _ = cp.cuda.runtime.getDeviceCount()
         _HAS_CUPY = True
-    except Exception:
+    except Exception:  # noqa: BLE001
         _HAS_CUPY = False
         _cp = None
     return _HAS_CUPY
@@ -89,7 +89,7 @@ def _to_gpu(arr: np.ndarray):
     if gpu_available():
         try:
             return _cp.asarray(arr)
-        except Exception:
+        except Exception:  # noqa: BLE001, S110
             pass
     return None
 
@@ -112,7 +112,7 @@ def _gpu_memory_info() -> str:
             free_mb = mem[0] / 1024 ** 2
             total_mb = mem[1] / 1024 ** 2
             return f"GPU mem: {free_mb:.0f}/{total_mb:.0f} MiB free"
-    except Exception:
+    except Exception:  # noqa: BLE001, S110  # noqa: BLE001
         pass
     return ""
 
@@ -143,7 +143,7 @@ def batch_l2_normalize(matrix: np.ndarray) -> np.ndarray:
                 results.append(result_chunk.astype(np.float32))
                 offset += GPU_BATCH_SIZE
                 continue
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001  # noqa: BLE001
                 mem_info = _gpu_memory_info()
                 logger.warning(
                     "GPU batch_l2_normalize failed on rows %d-%d (%s), "
@@ -188,7 +188,7 @@ def batch_cosine_similarity(matrix_a: np.ndarray, matrix_b: np.ndarray) -> np.nd
                 results[offset:chunk_end] = _from_gpu(sim)
                 offset = chunk_end
                 continue
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001  # noqa: BLE001
                 mem_info = _gpu_memory_info()
                 logger.warning(
                     "GPU batch_cosine_similarity failed on rows %d-%d (%s), "
@@ -235,7 +235,7 @@ def pairwise_cosine_similarity(matrix: np.ndarray) -> np.ndarray:
         try:
             sim = _cp.dot(gpu_arr, gpu_arr.T)
             return _from_gpu(sim)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001  # noqa: BLE001
             logger.warning("GPU pairwise_cosine_similarity failed, falling back: %s", exc)
 
     return np.dot(normed, normed.T)

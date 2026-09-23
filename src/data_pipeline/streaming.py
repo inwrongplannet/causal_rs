@@ -1,6 +1,6 @@
 import gc
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Dict, Sequence, Tuple
 
 import pandas as pd
 
@@ -20,7 +20,7 @@ def _infer_split_source(path: Path) -> str:
     return "unknown"
 
 
-def hash_split(session_key: str, ratios: Tuple[float, float, float]) -> str:
+def hash_split(session_key: str, ratios: tuple[float, float, float]) -> str:
     import hashlib
     val = int(hashlib.md5(session_key.encode("utf-8")).hexdigest(), 16) % 100
     train_thresh = int(ratios[0] * 100)
@@ -75,14 +75,14 @@ def stream_and_build(
     chunksize: int = 2000,
     neg_ratio: int = 4,
     seed: int = 42,
-) -> Dict[str, int]:
+) -> dict[str, int]:
     output_dir.mkdir(parents=True, exist_ok=True)
     columns = ["ImpressionID", "UserID", "Time", "History", "Impressions"]
 
     from src.data_pipeline.io_utils import save_parquet
 
     part_idx = 0
-    stats: Dict[str, int] = {"train": 0, "val": 0, "test": 0, "total_rows": 0}
+    stats: dict[str, int] = {"train": 0, "val": 0, "test": 0, "total_rows": 0}
 
     rows_consumed = 0
     for path in behavior_paths:

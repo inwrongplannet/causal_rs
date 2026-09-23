@@ -1,8 +1,10 @@
 from pathlib import Path
+
+import pandas as pd
 import pytest
+
 from src.data_pipeline.io_utils import save_parquet
 from src.data_pipeline.parsers import parse_history
-import pandas as pd
 
 
 class TestSaveParquet:

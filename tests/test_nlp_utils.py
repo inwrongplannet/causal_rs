@@ -1,13 +1,14 @@
 import numpy as np
 import pytest
+
 from src.data_pipeline.nlp_utils import (
-    l2_normalize,
+    batch_cosine_diversity,
+    batch_l2_normalize,
     cosine_diversity,
-    stable_hash_vector,
+    l2_normalize,
     mean_embeddings,
     score_sentiment,
-    batch_l2_normalize,
-    batch_cosine_diversity,
+    stable_hash_vector,
 )
 
 

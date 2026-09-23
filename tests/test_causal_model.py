@@ -6,6 +6,7 @@ These tests use SYNTHETIC data with a KNOWN true average treatment effect
 not just that it runs without crashing.
 """
 import matplotlib
+
 matplotlib.use("Agg")  # non-interactive backend; no display needed for tests
 
 import numpy as np
@@ -15,9 +16,9 @@ from dowhy import CausalModel
 
 from src.causal_model.model import (
     create_causal_model,
-    identify_effect,
     estimate_ate_ipw,
     estimate_ate_linear,
+    identify_effect,
     positivity_check,
 )
 from src.causal_model.refutation import run_refutations

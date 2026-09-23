@@ -1,21 +1,22 @@
-from typing import Callable, List, Sequence
+from collections.abc import Callable, Sequence
 
 import numpy as np
 import pandas as pd
 
 from src.data_pipeline.nlp_utils import (
-    cosine_diversity, l2_normalize, mean_embeddings,
-    score_sentiment, stable_hash_vector,
+    mean_embeddings,
+    score_sentiment,
+    stable_hash_vector,
 )
 from src.data_pipeline.parsers import parse_entities
 
 
 def compute_news_features(
     news_df: pd.DataFrame,
-    title_encoder: Callable[[List[str]], np.ndarray],
+    title_encoder: Callable[[list[str]], np.ndarray],
     sentiment_analyzer,
     entity_dim: int,
-    pretrained_entity_lookup: dict[str, np.ndarray] = None,
+    pretrained_entity_lookup: dict[str, np.ndarray] | None = None,
 ) -> pd.DataFrame:
     titles = news_df["Title"].astype(str).tolist()
     title_embeddings = title_encoder(titles)
@@ -55,7 +56,7 @@ def compute_news_features(
     return features_df.set_index("item_id", drop=True)
 
 
-def prepare_behaviors(behaviors_df: pd.DataFrame, max_rows: int = None) -> pd.DataFrame:
+def prepare_behaviors(behaviors_df: pd.DataFrame, max_rows: int | None = None) -> pd.DataFrame:
     from src.data_pipeline.parsers import parse_history, parse_impressions
 
     prepared = behaviors_df.copy()
@@ -94,7 +95,7 @@ def build_session_user_features(
 
 def sample_negative_items(
     item_pool: np.ndarray, shown_item_ids: Sequence[str], count: int, rng
-) -> List[str]:
+) -> list[str]:
     if count <= 0:
         return []
     shown_set = set(shown_item_ids)

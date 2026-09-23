@@ -1,12 +1,11 @@
 import importlib
 import logging
-from typing import Callable
+from collections.abc import Callable
 
 import numpy as np
 from sklearn.feature_extraction.text import HashingVectorizer
 
 from src.config import GPU_DEVICE
-
 from src.gpu_utils import gpu_available
 
 logger = logging.getLogger(__name__)
@@ -22,7 +21,7 @@ def _resolve_device() -> str:
 def build_title_encoder(model_name: str, expected_dim: int) -> tuple[Callable, dict]:
     try:
         st_module = importlib.import_module("sentence_transformers")
-        sentence_transformer_cls = getattr(st_module, "SentenceTransformer")
+        sentence_transformer_cls = st_module.SentenceTransformer
         device = _resolve_device()
         model = sentence_transformer_cls(model_name, device=device)
         logger.info("Title encoder running on %s", device)
@@ -43,7 +42,7 @@ def build_title_encoder(model_name: str, expected_dim: int) -> tuple[Callable, d
             "model": model_name,
             "embedding_dim": str(expected_dim),
         }
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001
         vectorizer = HashingVectorizer(n_features=expected_dim, alternate_sign=False, norm=None)
 
         def encode(texts: list[str]) -> np.ndarray:

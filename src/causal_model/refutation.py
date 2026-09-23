@@ -12,7 +12,7 @@ def run_refutations(model, estimand, estimate, num_simulations: int = 10):
         print("\n1. Placebo Treatment:\n", refute_placebo)
         if abs(refute_placebo.new_effect) > 0.05:
             print("WARNING: Placebo effect is non-zero. The graph may be misspecified.")
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         print("Placebo refutation failed:", e)
         results["placebo"] = None
 
@@ -25,7 +25,7 @@ def run_refutations(model, estimand, estimate, num_simulations: int = 10):
         )
         results["subset"] = refute_subset
         print("\n2. Data Subset:\n", refute_subset)
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         print("Data subset refutation failed:", e)
         results["subset"] = None
 
@@ -37,7 +37,7 @@ def run_refutations(model, estimand, estimate, num_simulations: int = 10):
         )
         results["random_common_cause"] = refute_rcc
         print("\n3. Random Common Cause:\n", refute_rcc)
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001
         print("Random common cause refutation failed:", e)
         results["random_common_cause"] = None
 

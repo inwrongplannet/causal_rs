@@ -1,7 +1,45 @@
-from src.data_pipeline.nlp_utils import l2_normalize, cosine_diversity, stable_hash_vector, mean_embeddings, build_sentiment_analyzer, score_sentiment
-from src.data_pipeline.parsers import parse_history, parse_impressions, parse_entities
-from src.data_pipeline.io_utils import download_file, extract_zip, canonicalize_split_files, discover_split_pairs, prepare_mind_small_dataset, prepare_mind_large_dataset, load_news_frames, load_behavior_frames, load_entity_embeddings, save_parquet
-from src.data_pipeline.embedder import build_title_encoder
-from src.data_pipeline.features import compute_news_features, prepare_behaviors, build_session_user_features, sample_negative_items
-from src.data_pipeline.scm_builder import build_scm_dataframe, reduce_embedding_columns, split_by_impression_id, run_quality_checks, build_phase1_report
-from src.data_pipeline.streaming import _infer_split_source, hash_split, process_behavior_chunk, stream_and_build
+from src.data_pipeline.embedder import build_title_encoder  # noqa: F401
+from src.data_pipeline.features import (  # noqa: F401
+    build_session_user_features,
+    compute_news_features,
+    prepare_behaviors,
+    sample_negative_items,
+)
+from src.data_pipeline.io_utils import (  # noqa: F401
+    canonicalize_split_files,
+    discover_split_pairs,
+    download_file,
+    extract_zip,
+    load_behavior_frames,
+    load_entity_embeddings,
+    load_news_frames,
+    prepare_mind_large_dataset,
+    prepare_mind_small_dataset,
+    save_parquet,
+)
+from src.data_pipeline.nlp_utils import (  # noqa: F401
+    build_sentiment_analyzer,
+    cosine_diversity,
+    l2_normalize,
+    mean_embeddings,
+    score_sentiment,
+    stable_hash_vector,
+)
+from src.data_pipeline.parsers import (  # noqa: F401
+    parse_entities,
+    parse_history,
+    parse_impressions,
+)
+from src.data_pipeline.scm_builder import (  # noqa: F401
+    build_phase1_report,
+    build_scm_dataframe,
+    reduce_embedding_columns,
+    run_quality_checks,
+    split_by_impression_id,
+)
+from src.data_pipeline.streaming import (  # noqa: F401
+    _infer_split_source,
+    hash_split,
+    process_behavior_chunk,
+    stream_and_build,
+)

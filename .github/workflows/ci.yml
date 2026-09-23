@@ -1,0 +1,38 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  MPLBACKEND: Agg
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          # NOTE: pinned to 3.11 for broad wheel availability across
+          # torch/dowhy/stable-baselines3/gymnasium. The README describes
+          # the project as developed on Python 3.14 — if that is a hard
+          # requirement, change this value, but first confirm every package
+          # in requirements.txt publishes a 3.14 wheel, or CI will fail.
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+
+      - name: Lint with ruff
+        run: ruff check src/ tests/
+
+      - name: Run tests with coverage
+        run: pytest tests/ -v --cov=src --cov-report=term-missing --cov-fail-under=70

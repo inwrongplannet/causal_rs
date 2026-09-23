@@ -1,7 +1,6 @@
-from typing import List
 
 
-def build_causal_graph_gml(pca_columns: List[str]) -> str:
+def build_causal_graph_gml(pca_columns: list[str]) -> str:
     u_pca_nodes = "\n  ".join(
         [f'node [id "{col}" label "{col}"]' for col in pca_columns]
     )

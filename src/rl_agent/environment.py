@@ -1,9 +1,9 @@
 import logging
 
-import numpy as np
 import gymnasium as gym
+import numpy as np
 
-from src.gpu_utils import gpu_available, batch_cosine_similarity
+from src.gpu_utils import batch_cosine_similarity, gpu_available
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +36,7 @@ def cosine_similarity(a: np.ndarray, b: np.ndarray) -> float:
             a_norm = gpu_a / (_cp.linalg.norm(gpu_a) + 1e-10)
             b_norm = gpu_b / (_cp.linalg.norm(gpu_b) + 1e-10)
             return float(_cp.dot(a_norm, b_norm))
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001
             logger.debug("GPU cosine_similarity failed, falling back: %s", exc)
     a_norm = a / (np.linalg.norm(a) + 1e-10)
     b_norm = b / (np.linalg.norm(b) + 1e-10)

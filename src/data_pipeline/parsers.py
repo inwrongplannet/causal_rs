@@ -1,11 +1,10 @@
 import ast
 import json
-from typing import List, Tuple
 
 import pandas as pd
 
 
-def parse_history(history_str: str) -> List[str]:
+def parse_history(history_str: str) -> list[str]:
     if pd.isna(history_str):
         return []
     text = str(history_str).strip()
@@ -14,10 +13,10 @@ def parse_history(history_str: str) -> List[str]:
     return [tok for tok in text.split() if tok]
 
 
-def parse_impressions(impressions_str: str) -> List[Tuple[str, int]]:
+def parse_impressions(impressions_str: str) -> list[tuple[str, int]]:
     if pd.isna(impressions_str):
         return []
-    pairs: List[Tuple[str, int]] = []
+    pairs: list[tuple[str, int]] = []
     for token in str(impressions_str).split():
         if "-" not in token:
             continue
@@ -28,7 +27,7 @@ def parse_impressions(impressions_str: str) -> List[Tuple[str, int]]:
     return pairs
 
 
-def parse_entities(entity_blob: str) -> List[str]:
+def parse_entities(entity_blob: str) -> list[str]:
     if pd.isna(entity_blob):
         return []
     text = str(entity_blob).strip()
@@ -39,11 +38,11 @@ def parse_entities(entity_blob: str) -> List[str]:
         try:
             payload = parser(text)
             break
-        except Exception:
+        except Exception:  # noqa: BLE001, S112
             continue
     if not isinstance(payload, list):
         return []
-    ids: List[str] = []
+    ids: list[str] = []
     for node in payload:
         if isinstance(node, dict):
             entity_id = node.get("WikidataId") or node.get("WikidataID") or node.get("Label")

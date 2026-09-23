@@ -1,14 +1,13 @@
 """Tests for src.gpu_utils — run correctly with or without a GPU."""
 
 import numpy as np
-import pytest
 
 from src.gpu_utils import (
-    batch_l2_normalize,
-    batch_cosine_similarity,
     batch_cosine_diversity,
-    pairwise_cosine_similarity,
+    batch_cosine_similarity,
+    batch_l2_normalize,
     gpu_available,
+    pairwise_cosine_similarity,
 )
 
 

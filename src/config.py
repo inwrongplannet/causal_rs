@@ -13,9 +13,8 @@ work unchanged.
 
 import os
 import sys
-import sysconfig
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any
 
 import yaml
 
@@ -28,7 +27,7 @@ CONFIG_PATH = PROJECT_ROOT / "config.yaml"
 # ---------------------------------------------------------------------------
 # Defaults
 # ---------------------------------------------------------------------------
-_DEFAULTS: Dict[str, Any] = {
+_DEFAULTS: dict[str, Any] = {
     "seed": 42,
     "dataset": "small",
     "neg_ratio": 4,
@@ -84,7 +83,7 @@ def _parse_value(value: str) -> Any:
     return value
 
 
-def _load_yaml(path: Path) -> Dict[str, Any]:
+def _load_yaml(path: Path) -> dict[str, Any]:
     if not path.exists():
         return {}
     with open(path, "r", encoding="utf-8") as f:
@@ -92,8 +91,8 @@ def _load_yaml(path: Path) -> Dict[str, Any]:
     return data if isinstance(data, dict) else {}
 
 
-def _load_env(prefix: str = "CAUSAL_RS_") -> Dict[str, Any]:
-    config: Dict[str, Any] = {}
+def _load_env(prefix: str = "CAUSAL_RS_") -> dict[str, Any]:
+    config: dict[str, Any] = {}
     for key, value in os.environ.items():
         if key.startswith(prefix):
             config_key = key[len(prefix):].lower()
@@ -101,8 +100,8 @@ def _load_env(prefix: str = "CAUSAL_RS_") -> Dict[str, Any]:
     return config
 
 
-def _load_cli() -> Dict[str, Any]:
-    config: Dict[str, Any] = {}
+def _load_cli() -> dict[str, Any]:
+    config: dict[str, Any] = {}
     for arg in sys.argv[1:]:
         if arg.startswith("--config."):
             _, rest = arg.split("--config.", 1)
@@ -115,7 +114,7 @@ def _load_cli() -> Dict[str, Any]:
 # ---------------------------------------------------------------------------
 # Assemble final config
 # ---------------------------------------------------------------------------
-def _build_config() -> Dict[str, Any]:
+def _build_config() -> dict[str, Any]:
     cfg = dict(_DEFAULTS)
 
     # Layer 1: YAML

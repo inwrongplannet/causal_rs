@@ -3,7 +3,7 @@ import pandas as pd
 from dowhy import gcm
 
 
-def category_to_int(category: str, categories: list = None) -> int:
+def category_to_int(category: str, categories: list | None = None) -> int:
     """Map a category string to an integer for the GCM.
 
     Uses an optional lookup list for consistent mapping, otherwise falls
@@ -23,7 +23,7 @@ def category_to_int(category: str, categories: list = None) -> int:
             return 0
     try:
         return int(hash(category) % 1000)
-    except Exception:
+    except Exception:  # noqa: BLE001
         return 0
 
 
@@ -32,9 +32,9 @@ def predict_diversity_counterfactual(
     user_row: pd.Series,
     new_item_category: str,
     new_item_sentiment: float,
-    new_item_entity_pca: dict = None,
-    new_item_title_pca: dict = None,
-    categories: list = None,
+    new_item_entity_pca: dict | None = None,
+    new_item_title_pca: dict | None = None,
+    categories: list | None = None,
     n_draws: int = 200,
 ) -> float:
     """Predict counterfactual Y_diversity under intervention.

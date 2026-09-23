@@ -1,11 +1,11 @@
 import numpy as np
 import pandas as pd
-import pytest
+
 from src.data_pipeline.features import (
+    build_session_user_features,
     compute_news_features,
     prepare_behaviors,
     sample_negative_items,
-    build_session_user_features,
 )
 
 

@@ -1,7 +1,4 @@
-import pytest
 import networkx as nx
-import numpy as np
-import pandas as pd
 
 from src.counterfactual.gcm_fit import build_causal_graph
 from src.counterfactual.queries import category_to_int

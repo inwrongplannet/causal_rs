@@ -1,12 +1,12 @@
-import pytest
 import numpy as np
+import pytest
 
 from src.evaluation.metrics import (
+    aggregate_metrics,
+    homogeneity_trend,
+    ild,
     ndcg_at_k,
     precision_at_k,
-    ild,
-    homogeneity_trend,
-    aggregate_metrics,
     significance_test,
 )
 

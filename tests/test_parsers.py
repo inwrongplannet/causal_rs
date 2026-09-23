@@ -1,5 +1,4 @@
-import pytest
-from src.data_pipeline.parsers import parse_history, parse_impressions, parse_entities
+from src.data_pipeline.parsers import parse_entities, parse_history, parse_impressions
 
 
 class TestParseHistory:

@@ -1,18 +1,19 @@
 import logging
+
 import networkx as nx
 import pandas as pd
-from sklearn.ensemble import HistGradientBoostingRegressor
 from dowhy import gcm
 from dowhy.gcm import auto
 from dowhy.gcm.ml import SklearnRegressionModel
+from sklearn.ensemble import HistGradientBoostingRegressor
 
 log = logging.getLogger(__name__)
 
 
 def build_causal_graph(
     pca_columns: list,
-    entity_pca_columns: list = None,
-    title_pca_columns: list = None,
+    entity_pca_columns: list | None = None,
+    title_pca_columns: list | None = None,
 ) -> nx.DiGraph:
     """Build the causal DAG for the news recommendation SCM.
 
@@ -76,8 +77,8 @@ def _discover_title_pca(df_train: pd.DataFrame) -> list:
 def fit_gcm(
     df_train: pd.DataFrame,
     pca_columns: list,
-    entity_pca_columns: list = None,
-    title_pca_columns: list = None,
+    entity_pca_columns: list | None = None,
+    title_pca_columns: list | None = None,
 ) -> gcm.StructuralCausalModel:
     """Build and fit a DoWhy StructuralCausalModel on training data.
 
@@ -122,8 +123,8 @@ def fit_gcm(
 def fit_gcm_item_sensitive(
     df_train: pd.DataFrame,
     pca_columns: list,
-    entity_pca_columns: list = None,
-    title_pca_columns: list = None,
+    entity_pca_columns: list | None = None,
+    title_pca_columns: list | None = None,
     n_draws: int = 200,
 ) -> tuple:
     """Build and fit a GCM with an item-sensitive mechanism for Y_diversity.

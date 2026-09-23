@@ -2,13 +2,11 @@ import os
 import shutil
 import urllib.request
 import zipfile
+from collections.abc import Sequence
 from pathlib import Path
-from typing import Dict, List, Sequence
 
 import numpy as np
 import pandas as pd
-
-from src.config import RAW_DIR
 
 
 def download_file(url: str, destination: Path) -> None:

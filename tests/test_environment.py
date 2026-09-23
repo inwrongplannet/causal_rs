@@ -1,11 +1,10 @@
-import pytest
 import numpy as np
+import pytest
 
 from src.rl_agent.environment import (
+    compute_session_diversity,
     cosine_similarity,
     ema_update,
-    compute_session_diversity,
-    NewsRecommendEnv,
 )
 
 

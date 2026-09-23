@@ -2,9 +2,8 @@ import logging
 
 import numpy as np
 
-from src.gpu_utils import batch_l2_normalize as _batch_l2_normalize
 from src.gpu_utils import batch_cosine_diversity as _batch_cosine_diversity
-from src.gpu_utils import gpu_available
+from src.gpu_utils import batch_l2_normalize as _batch_l2_normalize
 
 logger = logging.getLogger(__name__)
 
@@ -54,7 +53,7 @@ def build_sentiment_analyzer():
         except LookupError:
             nltk.download("vader_lexicon", quiet=True)
         return SentimentIntensityAnalyzer()
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001
         print(f"Sentiment analyzer unavailable, defaulting to 0.0 sentiment. Reason: {exc}")
         return None
 
@@ -64,7 +63,7 @@ def score_sentiment(text: str, analyzer) -> float:
         return 0.0
     try:
         return float(analyzer.polarity_scores(text if isinstance(text, str) else "")["compound"])
-    except Exception:
+    except Exception:  # noqa: BLE001
         return 0.0
 
 

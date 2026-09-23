@@ -3,10 +3,8 @@ import warnings
 
 import matplotlib.pyplot as plt
 import pandas as pd
-from sklearn.linear_model import LogisticRegression
-
-import dowhy
 from dowhy import CausalModel
+from sklearn.linear_model import LogisticRegression
 
 warnings.filterwarnings("ignore")
 logging.getLogger("dowhy").setLevel(logging.WARNING)
@@ -17,8 +15,8 @@ def create_causal_model(
     df: pd.DataFrame,
     treatment: str = "A",
     outcome: str = "Y_diversity",
-    graph_gml: str = None,
-    common_causes: list = None,
+    graph_gml: str | None = None,
+    common_causes: list | None = None,
 ) -> CausalModel:
     return CausalModel(
         data=df,
