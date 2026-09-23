@@ -221,3 +221,60 @@ def significance_test(
         f"{metric_name}: t={t_stat:.3f}, p={p_val:.4f}, Cohen_d={d:.3f}"
     )
     return bool(p_val < ALPHA)
+
+
+def cohens_d_label(d: float) -> str:
+    """Label a Cohen's d effect size using standard conventions.
+
+    Args:
+        d: Cohen's d value (can be negative; magnitude is used for labeling).
+
+    Returns:
+        One of "negligible" (< 0.2), "small" (0.2-0.5), "medium" (0.5-0.8),
+        or "large" (>= 0.8).
+    """
+    abs_d = abs(d)
+    if abs_d < 0.2:
+        return "negligible"
+    if abs_d < 0.5:
+        return "small"
+    if abs_d < 0.8:
+        return "medium"
+    return "large"
+
+
+def bootstrap_ci(values: list, n_boot: int = 10000, ci: float = 0.95, seed: int = 42) -> dict:
+    """Compute a bootstrap confidence interval for the mean of a list of values.
+
+    Resamples `values` with replacement `n_boot` times, computes the mean of
+    each resample, and returns the percentile confidence interval. Intended
+    to be called on PER-SEED aggregate scores (e.g. one mean NDCG per
+    independent training run), not on per-test-session scores from a single
+    trained policy — those answer different questions.
+
+    Args:
+        values: List or array of per-seed scores.
+        n_boot: Number of bootstrap resamples.
+        ci: Confidence level (e.g. 0.95 for a 95% CI).
+        seed: RNG seed for reproducibility.
+
+    Returns:
+        Dict with keys "mean", "ci_low", "ci_high", "excludes_zero" (bool,
+        True if the interval does not contain zero).
+    """
+    values = np.asarray(values, dtype=np.float64)
+    rng = np.random.default_rng(seed)
+    n = len(values)
+    boot_means = np.empty(n_boot)
+    for i in range(n_boot):
+        sample = rng.choice(values, size=n, replace=True)
+        boot_means[i] = sample.mean()
+    alpha = (1.0 - ci) / 2.0
+    ci_low = float(np.quantile(boot_means, alpha))
+    ci_high = float(np.quantile(boot_means, 1.0 - alpha))
+    return {
+        "mean": float(values.mean()),
+        "ci_low": ci_low,
+        "ci_high": ci_high,
+        "excludes_zero": bool(ci_low > 0.0 or ci_high < 0.0),
+    }
