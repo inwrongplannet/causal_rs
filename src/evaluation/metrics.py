@@ -1,8 +1,11 @@
 import numpy as np
 import pandas as pd
+import torch
 from scipy import stats
 
 from src.rl_agent.environment import NewsRecommendEnv, cosine_similarity
+
+ALPHA = 0.05  # Significance threshold used consistently across this module.
 
 
 def ndcg_at_k(recommended: list, clicked: set, K: int) -> float:
@@ -123,7 +126,11 @@ def replay_evaluate(policy, test_sessions, news_df, cdi_cache, w=0.6, K=10, T=10
     the ground-truth clicks.
 
     Args:
-        policy: Trained stable-baselines3 policy.
+        policy: The `.policy` attribute of a trained stable-baselines3
+            model (e.g. pass `model.policy`, NOT the top-level `model`
+            object itself). Must expose `.predict()`, `.parameters()`,
+            and `.get_distribution()` (all present on SB3's
+            `ActorCriticPolicy`, which is a `torch.nn.Module`).
         test_sessions: List of test session objects.
         news_df: News DataFrame indexed by item_id.
         cdi_cache: Dict mapping (user_id, item_id) -> CDI score.
@@ -133,7 +140,19 @@ def replay_evaluate(policy, test_sessions, news_df, cdi_cache, w=0.6, K=10, T=10
 
     Returns:
         Aggregated metrics dict from aggregate_metrics().
+
+    Raises:
+        TypeError: If `policy` does not look like an SB3 `ActorCriticPolicy`
+            (missing `.get_distribution`) — this usually means the caller
+            passed `model` instead of `model.policy`.
     """
+    if not hasattr(policy, "get_distribution"):
+        raise TypeError(
+            "replay_evaluate() expects model.policy (an SB3 ActorCriticPolicy "
+            "exposing .get_distribution()), not the top-level SB3 model. "
+            "Call replay_evaluate(model.policy, ...) instead of "
+            "replay_evaluate(model, ...)."
+        )
     results = []
     for session in test_sessions:
         env = NewsRecommendEnv([session], news_df, cdi_cache, w=w, K=20, T=T)
