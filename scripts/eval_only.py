@@ -1,4 +1,13 @@
-"""Quick evaluation script — re-uses already-trained model with min-max CDI."""
+"""Quick evaluation script — re-uses already-trained model with min-max CDI.
+
+WARNING — NOT THE SOURCE OF TRUTH FOR REPORTED RESULTS.
+This script duplicates evaluation logic that also exists in
+src/evaluation/metrics.py::replay_evaluate(), and the two have drifted out
+of sync. It also never seeds np.random (results are non-reproducible run
+to run) and hardcodes device="cuda" (will crash without an NVIDIA GPU).
+Use scripts/multi_seed_experiment.py + src/evaluation/metrics.py for any
+number that will be reported in a paper or README.
+"""
 import ast
 import logging
 import pickle
