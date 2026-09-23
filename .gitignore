@@ -35,3 +35,5 @@ notebooks/*_executed.ipynb
 # Installed tools
 python-*.exe
 *.zip
+data/
+tb_logs/
