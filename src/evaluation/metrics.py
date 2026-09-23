@@ -208,7 +208,8 @@ def significance_test(
         metric_name: Name of the metric for display.
 
     Returns:
-        True if p < 0.01 (statistically significant difference).
+        True if p < ALPHA (0.05 by default — see the module-level ALPHA
+        constant defined at the top of this file).
     """
     t_stat, p_val = stats.ttest_rel(causal_rl_scores, baseline_scores)
     d = (np.mean(causal_rl_scores) - np.mean(baseline_scores)) / (
@@ -217,4 +218,4 @@ def significance_test(
     print(
         f"{metric_name}: t={t_stat:.3f}, p={p_val:.4f}, Cohen_d={d:.3f}"
     )
-    return bool(p_val < 0.01)
+    return bool(p_val < ALPHA)
