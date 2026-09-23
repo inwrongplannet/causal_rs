@@ -165,7 +165,9 @@ def replay_evaluate(policy, test_sessions, news_df, cdi_cache, w=0.6, K=10, T=10
             dist = policy.get_distribution(obs_tensor)
             logits = dist.distribution.logits
             ranked = torch.argsort(logits[0], descending=True)[:K].cpu().numpy()
-            rec_lists.append(ranked)
+            cands = session.candidates[step]
+            rec_items = [cands[i].item_id for i in ranked]
+            rec_lists.append(rec_items)
             obs, _, done, _, _ = env.step(action)
             if done:
                 break
