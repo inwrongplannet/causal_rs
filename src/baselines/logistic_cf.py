@@ -5,7 +5,6 @@ This is the baseline the original project plan called for ("<5% degradation
 vs a CF baseline") but was never implemented before this module — only
 Random and Popularity baselines existed previously.
 """
-from typing import List, Optional
 
 import numpy as np
 import pandas as pd
@@ -16,14 +15,14 @@ EXTRA_NUMERIC_FEATURES = ("U_dwell_mean", "I_sentiment")
 CATEGORICAL_FEATURES = ("I_category",)
 
 
-def _select_feature_columns(df: pd.DataFrame) -> List[str]:
+def _select_feature_columns(df: pd.DataFrame) -> list[str]:
     """Find all PCA + numeric feature columns present in the dataframe."""
     cols = [c for c in df.columns if c.startswith(FEATURE_PREFIXES)]
     cols += [c for c in EXTRA_NUMERIC_FEATURES if c in df.columns]
     return cols
 
 
-def build_feature_matrix(df: pd.DataFrame, fit_columns: Optional[List[str]] = None):
+def build_feature_matrix(df: pd.DataFrame, fit_columns: list[str] | None = None):
     """Build a numeric feature matrix (PCA dims + numeric + one-hot category).
 
     Args:

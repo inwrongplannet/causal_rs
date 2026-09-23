@@ -3,8 +3,8 @@ import pandas as pd
 
 from src.baselines.logistic_cf import (
     build_feature_matrix,
-    train_logistic_cf,
     score_candidates,
+    train_logistic_cf,
 )
 
 
