@@ -7,7 +7,7 @@
 | Severity | Concern | Evidence | Impact | Suggested action |
 |----------|---------|----------|--------|------------------|
 | High | **CDI lacks per-item discrimination within sessions** — ~0.0005 variance across items means PPO reward is nearly constant | `docs/RESEARCH_LOG.md:712-713`, `src/counterfactual/queries.py:30-97` | PPO cannot learn meaningful ranking; performs ≈ Random on relevance | [ASK USER] Intended fix direction — min-max normalization (implemented), GCM mechanism tuning, or alternative diversity signal |
-| High | **No CI/CD pipeline** — no automated tests, linting, or coverage enforcement | Scan output line 351 (no CI/CD detected) | Regressions not caught before execution | [ASK USER] Add GitHub Actions for automated test run |
+| ~~High~~ Resolved | ~~No CI/CD pipeline~~ — **Resolved**: `.github/workflows/ci.yml` runs lint + tests + coverage floor (70%) on every push/PR | `.github/workflows/ci.yml` | N/A | N/A |
 | High | **`src/causal_model/` (4 modules) has zero test coverage** | `docs/RESEARCH_LOG.md:193` | Regressions in ATE estimation or refutation go undetected | Add unit tests for model creation, ATE estimation, refutation |
 | Medium | **No schema validation across pipeline phases** — Phase 2-5 assume parquet column names from Phase 1 | `src/data_pipeline/scm_builder.py:254-313` (quality checks only within Phase 1) | Silent failures if column names change | Define formal column contract for SCM parquet files |
 | Medium | **Arrow MemoryError risk** — full MIND-large parquet loading can exceed 2 GB contiguous allocation | `docs/RESEARCH_LOG.md:467-469` | Pipeline crashes on MIND-large load | Fragment loading implemented; verify on full dataset |
