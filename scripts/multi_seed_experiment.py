@@ -28,6 +28,7 @@ sys.path.insert(0, str(ROOT))
 
 from src.rl_agent.train_ppo import train_ppo
 from src.evaluation.metrics import replay_evaluate, ndcg_at_k, precision_at_k, ild
+from src.baselines.logistic_cf import train_logistic_cf, score_candidates
 
 DATA = ROOT / "data"
 ARTIFACTS = ROOT / "artifacts"
@@ -95,6 +96,30 @@ def _evaluate_random_baseline(sessions, news_df, K, rng):
     return pd.DataFrame(results)
 
 
+def _evaluate_logistic_cf_baseline(sessions, test_df, fitted_cf, K):
+    """Score-based Logistic-CF baseline (see src/baselines/logistic_cf.py)."""
+    results = []
+    candidates_by_item = test_df.drop_duplicates("item_id").set_index("item_id")
+    for s in sessions:
+        pool = s.candidate_pool
+        rows = candidates_by_item.loc[[iid for iid in pool if iid in candidates_by_item.index]]
+        if len(rows) == 0:
+            results.append({"ndcg": 0.0, "precision": 0.0, "ild": 0.0})
+            continue
+        scores = score_candidates(fitted_cf, rows)
+        ranked_item_ids = rows.index.to_numpy()[np.argsort(-scores)]
+        rec_items = ranked_item_ids[:K].tolist()
+        news_df = test_df[["item_id", "I_title_emb_full"]].drop_duplicates("item_id").set_index("item_id")
+        rec_embs = [_to_array(news_df.loc[iid, "I_title_emb_full"])
+                    for iid in rec_items if iid in news_df.index]
+        results.append({
+            "ndcg": ndcg_at_k(rec_items, s.clicked_items, K),
+            "precision": precision_at_k(rec_items, s.clicked_items, K),
+            "ild": ild(np.array(rec_embs)) if len(rec_embs) >= 2 else 0.0,
+        })
+    return pd.DataFrame(results)
+
+
 def _evaluate_popularity_baseline(sessions, news_df, pop_counter, K):
     results = []
     for s in sessions:
@@ -142,6 +167,10 @@ def main():
     news_df = test_df[["item_id", "I_title_emb_full"]].drop_duplicates("item_id").set_index("item_id")
     pop_counter = Counter(train_df["item_id"])
 
+    print("Training Logistic-CF baseline (trained once — deterministic given "
+          "a fixed seed, so it does not need retraining per PPO seed)...")
+    fitted_cf = train_logistic_cf(train_df, seed=42)
+
     all_results = []
 
     for seed in SEEDS:
@@ -176,6 +205,16 @@ def main():
         print("Evaluating Popularity...")
         pop_df = _evaluate_popularity_baseline(test_sessions, news_df, pop_counter, K)
         all_results.append(_metrics_row(seed, "Popularity", pop_df))
+
+        print("Evaluating Logistic-CF...")
+        # Logistic-CF is deterministic given seed=42 (fixed above) and does
+        # not vary across PPO training seeds. We repeat the same result
+        # under each seed label so scripts/analyze_results.py's per-seed
+        # bootstrap logic works unmodified for every method, including this
+        # one — this is intentional, not a bug: it correctly shows zero
+        # across-run variance for a deterministic method.
+        cf_df = _evaluate_logistic_cf_baseline(test_sessions, test_df, fitted_cf, K)
+        all_results.append(_metrics_row(seed, "Logistic-CF", cf_df))
 
     ARTIFACTS.mkdir(parents=True, exist_ok=True)
     with open(RESULTS_PATH, "w", encoding="utf-8") as f:
