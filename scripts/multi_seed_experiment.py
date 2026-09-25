@@ -26,6 +26,8 @@ import pandas as pd
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 
+from stable_baselines3 import PPO
+
 from src.rl_agent.train_ppo import train_ppo
 from src.evaluation.metrics import replay_evaluate, ndcg_at_k, precision_at_k, ild
 from src.baselines.logistic_cf import train_logistic_cf, score_candidates
@@ -176,22 +178,27 @@ def main():
     for seed in SEEDS:
         print(f"\n{'=' * 60}\nSEED {seed}\n{'=' * 60}")
 
-        print("Training PPO...")
-        model, save_path = train_ppo(
-            train_sessions,
-            news_df,
-            cdi_cache,
-            total_timesteps=TOTAL_TIMESTEPS,
-            n_envs=1,
-            w=W,
-            K=K,
-            T=T,
-            checkpoint_dir=str(ARTIFACTS / "checkpoints"),
-            model_name=f"ppo_multiseed_seed{seed}",
-            seed=seed,
-            verbose=0,
-        )
-        print(f"Saved to {save_path}")
+        checkpoint_zip = ARTIFACTS / "checkpoints" / f"ppo_multiseed_seed{seed}.zip"
+        if checkpoint_zip.exists():
+            print(f"Loading existing checkpoint from {checkpoint_zip}...")
+            model = PPO.load(str(checkpoint_zip))
+        else:
+            print("Training PPO...")
+            model, save_path = train_ppo(
+                train_sessions,
+                news_df,
+                cdi_cache,
+                total_timesteps=TOTAL_TIMESTEPS,
+                n_envs=1,
+                w=W,
+                K=K,
+                T=T,
+                checkpoint_dir=str(ARTIFACTS / "checkpoints"),
+                model_name=f"ppo_multiseed_seed{seed}",
+                seed=seed,
+                verbose=0,
+            )
+            print(f"Saved to {save_path}")
 
         print("Evaluating PPO...")
         ppo_metrics = replay_evaluate(model.policy, test_sessions, news_df, cdi_cache, w=W, K=K, T=T)

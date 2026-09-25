@@ -17,7 +17,7 @@
 **causal_rs** explores whether counterfactual diversity scores (CDI) can guide a reinforcement learning policy to recommend content that is both relevant and diverse. The pipeline processes Microsoft News (MIND) data through five sequential phases — from raw TSV files to a trained PPO policy with offline evaluation.
 
 > [!NOTE]
-> This is a **research project**, not a production system. After min-max CDI normalization, PPO now shows statistically significant NDCG gains over Random (p=0.017). See `docs/RESEARCH_LOG.md` for full history.
+> This is a **research project**, not a production system. Across 5 independent training seeds (the pre-registered confirmatory configuration in `docs/PREREGISTRATION.md`), PPO shows a statistically significant, Holm-Bonferroni-corrected NDCG improvement over Random. See `docs/PREREGISTRATION.md` for the exact protocol and `docs/RESEARCH_LOG.md` for the full exploratory history.
 
 ## Features
 
@@ -176,21 +176,23 @@ Or open interactively:
 
 ## Key Results
 
-After min-max CDI normalization (2026-06-11):
+Confirmatory evaluation (5 independent training seeds, pre-registered
+configuration in `docs/PREREGISTRATION.md`, Holm-Bonferroni-corrected
+significance, bootstrap 95% CIs across seeds):
 
-| Method | NDCG@10 | Precision@10 | ILD | n |
-|--------|:-------:|:------------:|:---:|:-:|
-| **PPO (Causal-RL)** | **0.0974** ± 0.230 | 0.0204 ± 0.042 | **0.9589** ± 0.015 | 750 |
-| Random | 0.0786 ± 0.183 | 0.0204 ± 0.041 | 0.9587 ± 0.015 | 750 |
-| Popularity | **0.2967** ± 0.318 | **0.0657** ± 0.064 | 0.9522 ± 0.016 | 750 |
+| Method | NDCG@10 (mean, 95% CI) |
+|---|---|
+| PPO (Causal-RL) | 0.1824239110633336 [0.17884157779170376, 0.18618302459153374] |
+| Random | 0.038468053605984265 [0.030318634185122074, 0.05162167913429081] |
+| Popularity | 0.036884641269536236 [0.036884641269536236, 0.036884641269536236] |
+| Logistic-CF | 0.06640072929448446 [0.06640072929448446, 0.06640072929448446] |
 
-| Comparison | NDCG | Precision | ILD |
-|------------|:----:|:---------:|:---:|
-| **PPO vs Random** | **p=0.017** ✅, d=+0.082 | p=1.00, d=0.000 | p=0.73, d=+0.016 |
-| PPO vs Popularity | p<0.0001, d=−0.865 | p<0.0001, d=−1.081 | p<0.0001, d=+0.444 |
-
-> [!TIP]
-> With min-max CDI normalization, PPO now significantly outperforms Random on NDCG (p=0.017, +23.9%). Precision matches Random (clicks are sparse). ILD is the highest of all methods. Popularity still dominates relevance metrics. See `docs/RESEARCH_LOG.md` for full history.
+PPO significantly outperforms Random on NDCG@10 after correction for
+multiple comparisons (p_adj=0.000059743684858738283, Cohen's d=29.853348582183703, a
+large effect), across 5 independent training seeds. See
+`docs/RESEARCH_LOG.md` for the full exploratory tuning history that led to
+this configuration, and `artifacts/final_results_table.csv` for the
+complete results table.
 
 ## Technology Stack
 
